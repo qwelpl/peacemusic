@@ -22,9 +22,21 @@ Floats above other windows, on every Space and over full screen apps. Hover to e
 
 Liquid Glass or Mono, in every mode.
 
-## Run
+## Install
 
-Needs macOS 26 and Xcode 26.
+Needs macOS 26 and Xcode 26. Builds from source and installs to `/Applications`, or `~/Applications` if that isn't writable.
+
+```sh
+curl -fsSL https://gitlab.com/q_welpl/peacemusic/-/raw/main/install.sh | bash
+```
+
+To remove it:
+
+```sh
+curl -fsSL https://gitlab.com/q_welpl/peacemusic/-/raw/main/install.sh | bash -s -- --uninstall
+```
+
+## Develop
 
 ```sh
 ./scripts/build.sh --run
