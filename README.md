@@ -40,6 +40,12 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 | \ | Reset this song's lyric timing |
 | F | Full screen |
 
+## Audio
+
+When nobody is singing in Halftone, Peace taps the Music app's audio so the dots can follow the bass. macOS asks for System Audio Recording permission the first time. Audio is measured on your Mac and never recorded or sent anywhere. If you decline, the dots just drift without ripples.
+
+`open build/Peace.app --args --demo-instrumental` shows this with a generated drum loop.
+
 ## Network use
 
 Track title and artist go to [LRCLIB](https://lrclib.net) and NetEase Cloud Music to find lyrics, and the best match is cached on disk. NetEase's API is unofficial, so it may stop working; Peace then falls back to LRCLIB. Artist and title go to the iTunes Search API only when Music has no artwork for a track.

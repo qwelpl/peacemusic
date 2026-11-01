@@ -24,6 +24,8 @@
     <string>public.app-category.music</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Peace measures the bass in the Music app's audio to animate Halftone mode. Audio is never recorded or sent anywhere.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Peace controls playback and reads your library through the Music app.</string>
 </dict>

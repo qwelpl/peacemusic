@@ -26,7 +26,7 @@ final class PlayerStore {
     var isPlaying: Bool { state == .playing }
 
     let bridge = MusicBridge()
-    let isDemo = CommandLine.arguments.contains("--demo")
+    let isDemo = CommandLine.arguments.contains { $0.hasPrefix("--demo") }
 
     private let lyricsClient = LyricsClient()
     private var anchorPosition: Double = 0
@@ -287,6 +287,10 @@ final class PlayerStore {
         let image = Palette.demoArtwork()
         artwork = image
         meshColors = Palette.meshColors(from: image)
+        if CommandLine.arguments.contains("--demo-instrumental") {
+            lyrics = .instrumental
+            return
+        }
         lyricsSource = .netEaseWords
         let demoLines = [
             (2.0, "Porch light humming in the rain"),

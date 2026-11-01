@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Print-inspired mode: the album art is a field of living dots, and every sung word
-/// sends a ripple through it. Ripples come from lyric timing, so they follow the vocal.
+/// Print-inspired mode: the album art is a field of living dots. Every sung word sends a
+/// ripple through it, and when nobody is singing the bass of the track does instead.
 struct HalftoneView: View {
     let chromeVisible: Bool
 
@@ -41,21 +41,66 @@ struct HalftoneView: View {
 private struct HalftoneField: View {
     @Environment(PlayerStore.self) private var store
     @State private var renderer = HalftoneRenderer()
+    @State private var analyzer = BassAnalyzer()
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !store.isPlaying)) { context in
             let date = context.date
+            let isWordless = isWordless
+            let bass = isWordless ? analyzer.reading : BassAnalyzer.Reading()
             Canvas(opaque: true) { graphics, size in
                 renderer.draw(
                     in: &graphics,
                     size: size,
                     artwork: store.artwork,
                     time: date.timeIntervalSinceReferenceDate,
-                    ripples: ripples(position: store.lyricPosition(at: date))
+                    ripples: isWordless
+                        ? bassRipples(bass, at: date)
+                        : ripples(position: store.lyricPosition(at: date)),
+                    bassLevel: bass.level
                 )
             }
         }
         .allowsHitTesting(false)
+        .onChange(of: listeningKey, initial: true) { _, _ in
+            guard isWordless else { return }
+            // Audio is only tapped once a track needs it, so the permission prompt
+            // doesn't appear for someone who only ever plays songs with lyrics.
+            if store.isDemo { analyzer.startDemo() } else { analyzer.start() }
+        }
+        .onDisappear { analyzer.stop() }
+    }
+
+    /// True when no timed words are on screen: instrumentals, songs without synced
+    /// lyrics, and breaks between verses.
+    private var isWordless: Bool {
+        switch store.lyrics {
+        case .loading:
+            false
+        case .synced(let lines):
+            store.lyricIndex.map { lines[$0].isInterlude } ?? true
+        case .none, .instrumental, .plain:
+            true
+        }
+    }
+
+    /// Changes when listening should begin, or reconnect after a new track starts.
+    private var listeningKey: String {
+        "\(isWordless)-\(store.track?.id ?? "")"
+    }
+
+    private func bassRipples(_ bass: BassAnalyzer.Reading, at date: Date) -> [HalftoneRipple] {
+        bass.onsets.compactMap { onset in
+            let age = date.timeIntervalSince(onset)
+            guard age >= 0, age < HalftoneRipple.lifetime else { return nil }
+            // Hits land near the middle, drifting slowly so the pattern doesn't repeat.
+            let seed = onset.timeIntervalSinceReferenceDate
+            return HalftoneRipple(
+                origin: CGPoint(x: 0.5 + 0.1 * sin(seed * 0.7), y: 0.42 + 0.08 * cos(seed * 0.9)),
+                age: age,
+                strength: 1.6
+            )
+        }
     }
 
     /// The most recent word onsets, or line onsets for songs with only line timing.
@@ -114,7 +159,8 @@ private final class HalftoneRenderer {
         size: CGSize,
         artwork: NSImage?,
         time: Double,
-        ripples: [HalftoneRipple]
+        ripples: [HalftoneRipple],
+        bassLevel: Double
     ) {
         graphics.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(white: 0.02)))
         guard size.width > 0, size.height > 0 else { return }
@@ -169,7 +215,7 @@ private final class HalftoneRenderer {
                 }
 
                 let breathing = sin(time * 0.6 + u * 5 + v * 4) * 0.07
-                let radiusUnit = Double(luminance) * (0.92 + breathing) + 0.05 + energy * 0.34
+                let radiusUnit = Double(luminance) * (0.92 + breathing + bassLevel * 0.2) + 0.05 + energy * 0.34
                 let radius = min(radiusUnit, 1.12) * pitch * 0.5
                 let x = (Double(column) + 0.5) * pitch + shift + pushX * pitch * 0.7
                 let y = (Double(row) + 0.5) * pitch + pushY * pitch * 0.7
