@@ -2,6 +2,21 @@ import AppKit
 import Observation
 import SwiftUI
 
+/// The corner of the panel the pill rests in, which faces the nearest corner of the screen.
+struct MiniPlayerCorner: Equatable {
+    var isLeading = false
+    var isTop = true
+
+    var alignment: Alignment {
+        switch (isLeading, isTop) {
+        case (true, true): .topLeading
+        case (false, true): .topTrailing
+        case (true, false): .bottomLeading
+        case (false, false): .bottomTrailing
+        }
+    }
+}
+
 /// Swaps between the main window and a small panel pinned above everything else. A pill inside
 /// the panel rests compact and springs open while the pointer is over it. The panel itself never
 /// changes size: resizing a window from an animation while SwiftUI lays it out makes AppKit abort
@@ -20,6 +35,7 @@ final class MiniPlayerController {
 
     private(set) var isOpen = false
     private(set) var isExpanded = false
+    private(set) var corner = MiniPlayerCorner()
 
     private let store: PlayerStore
     private let analyzer: MusicAnalyzer
@@ -58,6 +74,8 @@ final class MiniPlayerController {
     func setExpanded(_ expanded: Bool) {
         collapseTask?.cancel()
         guard isOpen, expanded != isExpanded else { return }
+        // The expanded pill fills the panel in every corner, so switching corners here can't jump.
+        if !expanded, let panel { settle(panel, animated: true) }
         withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) { isExpanded = expanded }
     }
 
@@ -121,6 +139,7 @@ final class MiniPlayerController {
         host.pillSize = { [weak self] in
             self?.isExpanded == true ? Self.expandedSize : Self.compactSize
         }
+        host.pillCorner = { [weak self] in self?.corner ?? MiniPlayerCorner() }
         host.onHoverChange = { [weak self] isInside in
             if isInside { self?.pointerEntered() } else { self?.pointerExited() }
         }
@@ -150,12 +169,31 @@ final class MiniPlayerController {
             height: Self.panelSize.height
         ), display: false)
         panel.setFrameAutosaveName(autosaveName)
+        settle(panel, animated: false)
+    }
+
+    /// Picks the corner of the screen the panel is nearest and keeps the pill on screen, since
+    /// shrinking into a corner that hangs off the edge would hide it.
+    private func settle(_ panel: NSPanel, animated: Bool) {
+        guard let area = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
+        var frame = panel.frame
+        corner = MiniPlayerCorner(isLeading: frame.midX < area.midX, isTop: frame.midY >= area.midY)
+
+        frame.origin.x = max(area.minX - Self.margin, min(frame.minX, area.maxX + Self.margin - frame.width))
+        frame.origin.y = max(area.minY - Self.margin, min(frame.minY, area.maxY + Self.margin - frame.height))
+        guard frame != panel.frame else { return }
+        if animated {
+            panel.animator().setFrame(frame, display: true)
+        } else {
+            panel.setFrame(frame, display: false)
+        }
     }
 }
 
 private final class MiniPlayerHostingView<Content: View>: NSHostingView<Content> {
     var onHoverChange: ((Bool) -> Void)?
     var pillSize: () -> NSSize = { .zero }
+    var pillCorner: () -> MiniPlayerCorner = { MiniPlayerCorner() }
     private var hoverArea: NSTrackingArea?
     private var isInsidePill = false
 
@@ -195,8 +233,10 @@ private final class MiniPlayerHostingView<Content: View>: NSHostingView<Content>
         let point = convert(event.locationInWindow, from: nil)
         let size = pillSize()
         let margin = MiniPlayerController.margin
-        let top = isFlipped ? margin : bounds.maxY - margin - size.height
-        let pill = NSRect(x: bounds.midX - size.width / 2, y: top, width: size.width, height: size.height)
+        let corner = pillCorner()
+        let x = corner.isLeading ? margin : bounds.maxX - margin - size.width
+        let y = corner.isTop != isFlipped ? bounds.maxY - margin - size.height : margin
+        let pill = NSRect(x: x, y: y, width: size.width, height: size.height)
         setInside(pill.contains(point))
     }
 
@@ -250,8 +290,8 @@ private struct MiniPlayerView: View {
         .clipShape(shape)
         .overlay(shape.strokeBorder(.white.opacity(theme == .glass ? 0.18 : 0.75), lineWidth: 1))
         .shadow(color: .black.opacity(0.4), radius: 12, y: 5)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, MiniPlayerController.margin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: miniPlayer.corner.alignment)
+        .padding(MiniPlayerController.margin)
     }
 
     private var pillSize: NSSize {
