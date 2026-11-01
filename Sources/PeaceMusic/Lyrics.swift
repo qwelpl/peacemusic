@@ -162,6 +162,8 @@ final class LyricsClient: @unchecked Sendable {
     }
 
     private static let durationTolerance = 2.5
+    /// How much of a song's length a version may leave uncovered compared to the fullest one.
+    private static let maxMissingShare = 0.12
     /// Word timing further than this from LRCLIB's timeline is probably a different master.
     private static let maxWordTimingOffset = 1.0
     private static let userAgent = "Mozilla/5.0 PeaceMusic/1.0"
@@ -177,9 +179,11 @@ final class LyricsClient: @unchecked Sendable {
     private let cacheDirectory: URL = {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let root = base.appendingPathComponent("PeaceMusic", isDirectory: true)
-        // Entries in the first cache format came from LRCLIB alone.
-        try? FileManager.default.removeItem(at: root.appendingPathComponent("lyrics"))
-        let url = root.appendingPathComponent("lyrics-v2", isDirectory: true)
+        // Older caches may hold picks made without the completeness check.
+        for old in ["lyrics", "lyrics-v2"] {
+            try? FileManager.default.removeItem(at: root.appendingPathComponent(old))
+        }
+        let url = root.appendingPathComponent("lyrics-v3", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()
@@ -220,35 +224,54 @@ final class LyricsClient: @unchecked Sendable {
         async let netEaseResult = netEaseLyrics(track)
         let lrclib = await lrclibResult
         let netEase = await netEaseResult
-        let isComplete = lrclib != nil && netEase != nil
+        let allSourcesAnswered = lrclib != nil && netEase != nil
 
         let candidates = lrclib ?? []
         let close = candidates.filter { abs(($0.duration ?? 0) - track.duration) <= Self.durationTolerance }
         let synced = close.compactMap(\.syncedLyrics).filter { !$0.isEmpty }
-        let reference = Self.consensus(synced, duration: track.duration)
+        let parsed = synced.map { LRCParser.parse($0, duration: track.duration) }
+        let wordLines = netEase?.yrc.map(YRCParser.parse) ?? []
+        let netEaseLines = netEase?.lrc.map { LRCParser.parse($0, duration: track.duration) } ?? []
 
-        if let yrc = netEase?.yrc {
-            let wordLines = YRCParser.parse(yrc)
-            let referenceLines = reference.map { LRCParser.parse($0, duration: track.duration) }
-            let offset = referenceLines.flatMap { Self.medianOffset(wordLines, $0) }
-            if !wordLines.isEmpty, abs(offset ?? 0) <= Self.maxWordTimingOffset {
-                return (Resolved(source: .netEaseWords, yrc: yrc), isComplete)
-            }
+        // A length match can't be trusted alone: databases hold lyrics from a shorter edit
+        // filed under the full song. Anything well short of the fullest version is out.
+        let bestCoverage = (parsed + [wordLines, netEaseLines]).map(Self.coverage).max() ?? 0
+        func isComplete(_ lines: [LyricLine]) -> Bool {
+            !lines.isEmpty && Self.coverage(lines) >= bestCoverage - track.duration * Self.maxMissingShare
+        }
+
+        let completeVersions = zip(synced, parsed).filter { isComplete($0.1) }.map(\.0)
+        let reference = Self.consensus(completeVersions, duration: track.duration)
+        let referenceLines = reference.map { LRCParser.parse($0, duration: track.duration) }
+        let offset = (referenceLines ?? parsed.first).flatMap { Self.medianOffset(wordLines, $0) }
+
+        if isComplete(wordLines), abs(offset ?? 0) <= Self.maxWordTimingOffset, let yrc = netEase?.yrc {
+            return (Resolved(source: .netEaseWords, yrc: yrc), allSourcesAnswered)
         }
         if let reference {
-            return (Resolved(source: .lrclib, lrc: reference), isComplete)
+            return (Resolved(source: .lrclib, lrc: reference), allSourcesAnswered)
         }
-        if let lrc = netEase?.lrc, !LRCParser.parse(lrc, duration: track.duration).isEmpty {
-            return (Resolved(source: .netEaseLines, lrc: lrc), isComplete)
+        if isComplete(netEaseLines), let lrc = netEase?.lrc {
+            return (Resolved(source: .netEaseLines, lrc: lrc), allSourcesAnswered)
         }
         if close.contains(where: { $0.instrumental == true }) {
-            return (Resolved(instrumental: true), isComplete)
+            return (Resolved(instrumental: true), allSourcesAnswered)
         }
         let plain = (close + candidates).compactMap(\.plainLyrics).first { !$0.isEmpty }
-        return (Resolved(source: .plain, plain: plain), isComplete)
+        return (Resolved(source: .plain, plain: plain), allSourcesAnswered)
     }
 
     // MARK: Scoring
+
+    /// Seconds of the song a version accounts for. Each line only counts for a few seconds,
+    /// so both an early ending and a missing verse in the middle lower the total.
+    private static func coverage(_ lines: [LyricLine]) -> Double {
+        var total = 0.0
+        for (line, next) in zip(lines, lines.dropFirst()) where !line.isInterlude {
+            total += min(next.time - line.time, 8)
+        }
+        return total
+    }
 
     /// Picks the version whose timeline agrees most with the others, which screens out
     /// the occasional submission that is shifted or timed by hand against a different cut.
@@ -297,7 +320,7 @@ final class LyricsClient: @unchecked Sendable {
 
     /// Compares titles with any bracketed suffix removed, rejecting other recordings of the song.
     private static func isSameSong(candidate: String, track: Track) -> Bool {
-        let variants = ["remix", "live", "cover", "instrumental", "karaoke", "acoustic", "伴奏"]
+        let variants = ["remix", "mix", "edit", "club", "dub", "live", "cover", "instrumental", "karaoke", "acoustic", "伴奏"]
         let lowerCandidate = candidate.lowercased()
         let lowerTitle = track.title.lowercased()
         for variant in variants where lowerCandidate.contains(variant) && !lowerTitle.contains(variant) {
@@ -316,6 +339,17 @@ final class LyricsClient: @unchecked Sendable {
         return candidates.map(normalized).contains { name in
             !name.isEmpty && (artist.contains(name) || name.contains(artist))
         }
+    }
+
+    /// "Official髭男dism" and "OFFICIAL HIGE DANDISM" share no spelling, so a non-Latin artist
+    /// name is accepted on an identical title and a near-identical length instead.
+    private static func isSameSongInAnotherScript(
+        _ title: String, artists: [String], difference: Double, track: Track
+    ) -> Bool {
+        let hasNonLatinName = artists.contains { name in
+            name.unicodeScalars.contains { $0.properties.isAlphabetic && $0.value > 0x24F }
+        }
+        return hasNonLatinName && difference <= 1 && normalized(title) == normalized(cleanTitle(track.title))
     }
 
     // MARK: Sources
@@ -342,9 +376,13 @@ final class LyricsClient: @unchecked Sendable {
 
         let matches = (response.result?.songs ?? [])
             .filter { song in
-                abs((song.duration ?? 0) / 1000 - track.duration) <= Self.durationTolerance
-                    && Self.isSameSong(candidate: song.name, track: track)
-                    && Self.isSameArtist(candidates: (song.artists ?? []).compactMap(\.name), track: track)
+                let difference = abs((song.duration ?? 0) / 1000 - track.duration)
+                let artists = (song.artists ?? []).compactMap(\.name)
+                guard difference <= Self.durationTolerance, Self.isSameSong(candidate: song.name, track: track) else {
+                    return false
+                }
+                return Self.isSameArtist(candidates: artists, track: track)
+                    || Self.isSameSongInAnotherScript(song.name, artists: artists, difference: difference, track: track)
             }
             .sorted { abs(($0.duration ?? 0) / 1000 - track.duration) < abs(($1.duration ?? 0) / 1000 - track.duration) }
 
