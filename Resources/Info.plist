@@ -20,6 +20,8 @@
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>26.0</string>
+    <key>LSUIElement</key>
+    <true/>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.music</string>
     <key>NSHighResolutionCapable</key>

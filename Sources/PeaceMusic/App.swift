@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        !miniPlayer.isOpen
+        false
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -45,6 +45,7 @@ struct PeaceApp: App {
                 .environment(delegate.miniPlayer)
                 .environment(\.musicAnalyzer, delegate.analyzer)
                 .frame(minWidth: 900, minHeight: 620)
+                .connectMainWindow(to: delegate.miniPlayer)
         }
         .windowStyle(.hiddenTitleBar)
         .windowBackgroundDragBehavior(.enabled)
@@ -56,5 +57,51 @@ struct PeaceApp: App {
                     .keyboardShortcut("m", modifiers: [.command, .shift])
             }
         }
+
+        MenuBarExtra("Peace", systemImage: "music.note") {
+            MenuBarMenu()
+                .environment(delegate.store)
+                .environment(delegate.miniPlayer)
+                .connectMainWindow(to: delegate.miniPlayer)
+        }
+    }
+}
+
+private struct MenuBarMenu: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(MiniPlayerController.self) private var miniPlayer
+
+    var body: some View {
+        if let track = store.track {
+            Text(track.title)
+            Text(track.artist)
+            Divider()
+        }
+        Button(store.isPlaying ? "Pause" : "Play", action: store.togglePlayPause)
+        Button("Next", action: store.next)
+        Button("Previous", action: store.previous)
+        Divider()
+        Button("Show Peace", action: miniPlayer.showMainWindow)
+        Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
+        Divider()
+        Button("Quit Peace") { NSApp.terminate(nil) }
+            .keyboardShortcut("q")
+    }
+}
+
+private struct ConnectMainWindow: ViewModifier {
+    let miniPlayer: MiniPlayerController
+    @Environment(\.openWindow) private var openWindow
+
+    func body(content: Content) -> some View {
+        content.onAppear {
+            miniPlayer.openMainWindow = { openWindow(id: "main") }
+        }
+    }
+}
+
+private extension View {
+    func connectMainWindow(to miniPlayer: MiniPlayerController) -> some View {
+        modifier(ConnectMainWindow(miniPlayer: miniPlayer))
     }
 }

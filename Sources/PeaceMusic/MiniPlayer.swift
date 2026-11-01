@@ -36,6 +36,7 @@ final class MiniPlayerController {
     private let analyzer: MusicAnalyzer
     @ObservationIgnored private var panel: NSPanel?
     @ObservationIgnored private weak var mainWindow: NSWindow?
+    @ObservationIgnored var openMainWindow: () -> Void = {}
     @ObservationIgnored private var collapseTask: Task<Void, Never>?
 
     init(store: PlayerStore, analyzer: MusicAnalyzer) {
@@ -62,8 +63,20 @@ final class MiniPlayerController {
         isOpen = false
         collapseTask?.cancel()
         panel?.orderOut(nil)
+        revealMainWindow()
+    }
+
+    func showMainWindow() {
+        if isOpen { close() } else { revealMainWindow() }
+    }
+
+    private func revealMainWindow() {
         NSApp.activate()
-        mainWindow?.makeKeyAndOrderFront(nil)
+        if let mainWindow {
+            mainWindow.makeKeyAndOrderFront(nil)
+        } else {
+            openMainWindow()
+        }
     }
 
     func setExpanded(_ expanded: Bool) {
@@ -87,7 +100,8 @@ final class MiniPlayerController {
     }
 
     private func hideMainWindow() {
-        guard let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) else { return }
+        mainWindow = nil
+        guard let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain && $0.isVisible }) else { return }
         mainWindow = window
         if window.styleMask.contains(.fullScreen) {
             window.toggleFullScreen(nil)

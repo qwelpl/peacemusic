@@ -10,9 +10,13 @@ Controls Music.app over Apple Events, so no developer token is needed.
 - Stage: current lyric in full-window type, with the art showing through the letters.
 - Halftone: the art as a dot field that reacts to the audio.
 
+## Menu bar
+
+Peace runs from the menu bar, with no Dock icon. The menu has playback controls, the full player, the mini player and Quit.
+
 ## Mini player
 
-Floats above other windows, on every Space and over full screen apps. Hover to expand, drag to move. It shrinks toward the nearest screen corner. `OPEN` or the Dock icon returns to the full player.
+Floats above other windows, on every Space and over full screen apps. Hover to expand, drag to move. It shrinks toward the nearest screen corner. `OPEN` or the menu bar icon returns to the full player.
 
 ## Themes
 
