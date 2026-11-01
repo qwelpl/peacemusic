@@ -36,12 +36,6 @@ struct HalftoneView: View {
     }
 }
 
-private enum HalftoneType {
-    static func font(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font {
-        .system(size: size, weight: weight, design: .monospaced)
-    }
-}
-
 // MARK: Dot field
 
 private struct HalftoneField: View {
@@ -275,35 +269,37 @@ private final class HalftoneRenderer {
 // MARK: Interface
 
 private struct HalftoneHeader: View {
+    @Environment(\.uiTheme) private var theme
     @Environment(PlayerStore.self) private var store
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(store.track?.title.uppercased() ?? "")
-                .font(HalftoneType.font(15, .bold))
+                .font(theme.font(15, .bold))
             Text(store.track?.artist.uppercased() ?? "")
-                .font(HalftoneType.font(12))
+                .font(theme.font(12))
                 .foregroundStyle(.white.opacity(0.7))
         }
         .lineLimit(1)
         .foregroundStyle(.white)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(.black)
+        .themedPanel(theme, cornerRadius: 12)
     }
 }
 
 private struct HalftoneCaption: View {
+    @Environment(\.uiTheme) private var theme
     @Environment(PlayerStore.self) private var store
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             current
-                .font(HalftoneType.font(30, .bold))
+                .font(theme.font(36, .bold))
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
             Text(nextText)
-                .font(HalftoneType.font(14))
+                .font(theme.font(14))
                 .foregroundStyle(.white.opacity(0.5))
                 .lineLimit(1)
         }
@@ -346,6 +342,7 @@ private struct HalftoneCaption: View {
 }
 
 private struct HalftoneControls: View {
+    @Environment(\.uiTheme) private var theme
     let chromeVisible: Bool
 
     @Environment(PlayerStore.self) private var store
@@ -359,7 +356,7 @@ private struct HalftoneControls: View {
                 let shown = dragValue ?? (duration > 0 ? store.position(at: context.date) / duration : 0)
                 HStack(spacing: 14) {
                     Text("\(Self.format(shown * duration)) / \(Self.format(duration))")
-                        .font(HalftoneType.font(12))
+                        .font(theme.font(12))
                         .monospacedDigit()
                         .foregroundStyle(.white.opacity(0.75))
                         .fixedSize()
@@ -369,10 +366,20 @@ private struct HalftoneControls: View {
                     }
                 }
             }
-            HalftoneButton(title: "PREV", action: store.previous)
-            HalftoneButton(title: store.isPlaying ? "PAUSE" : "PLAY", action: store.togglePlayPause)
-                .frame(width: 76)
-            HalftoneButton(title: "NEXT", action: store.next)
+            GlassEffectContainer(spacing: 10) {
+                HStack(spacing: 8) {
+                    PlayerButton(symbol: "backward.fill", title: "PREV", diameter: 40, iconSize: 14, action: store.previous)
+                    PlayerButton(
+                        symbol: store.isPlaying ? "pause.fill" : "play.fill",
+                        title: store.isPlaying ? "PAUSE" : "PLAY",
+                        diameter: 48,
+                        iconSize: 18,
+                        monoWidth: 70,
+                        action: store.togglePlayPause
+                    )
+                    PlayerButton(symbol: "forward.fill", title: "NEXT", diameter: 40, iconSize: 14, action: store.next)
+                }
+            }
         }
         .opacity(chromeVisible ? 1 : 0)
         .allowsHitTesting(chromeVisible)
@@ -381,29 +388,5 @@ private struct HalftoneControls: View {
     private static func format(_ seconds: Double) -> String {
         let total = Int(max(seconds, 0).rounded(.down))
         return String(format: "%02d:%02d", total / 60, total % 60)
-    }
-}
-
-private struct HalftoneButton: View {
-    let title: String
-    let action: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(HalftoneType.font(12, .bold))
-                .foregroundStyle(isHovered ? .black : .white)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isHovered ? Color.white : .clear)
-                .overlay(Rectangle().strokeBorder(.white.opacity(0.75), lineWidth: 1))
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .fixedSize(horizontal: true, vertical: false)
     }
 }

@@ -10,6 +10,10 @@ Peace controls the Music app over Apple Events, so Music does the playing and yo
 - **Stage:** the current lyric fills the window in giant poster type, with the album art moving through the letters and words landing one by one.
 - **Halftone:** the album art becomes a field of printed dots, and each sung word sends a ripple through them. Monospace interface.
 
+## Themes
+
+Every mode can use **Liquid Glass** or **Mono**, which has square outlined buttons and monospace type.
+
 ## Run
 
 Needs macOS 26 and Xcode 26.
@@ -29,6 +33,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 | Space | Play / pause |
 | Left / Right | Previous / next |
 | M | Switch mode (Turntable / Stage / Halftone) |
+| T | Switch theme (Liquid Glass / Mono) |
 | L | Show or hide lyrics (Turntable) |
 | V | Switch between vinyl and cover (Turntable) |
 | [ / ] | Shift this song's lyrics 0.1s later / earlier |

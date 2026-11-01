@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct LibraryPanel: View {
+    @Environment(\.uiTheme) private var theme
     let onClose: () -> Void
 
     @Environment(PlayerStore.self) private var store
@@ -32,7 +33,7 @@ struct LibraryPanel: View {
                         ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(20)
                     } else if showsEmptyMessage {
                         Text(isSearching ? "Nothing found in your library" : "Nothing here yet")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(theme.font(13, .medium))
                             .foregroundStyle(.white.opacity(0.55))
                             .frame(maxWidth: .infinity)
                             .padding(30)
@@ -43,7 +44,7 @@ struct LibraryPanel: View {
         .padding(18)
         .frame(width: 360)
         .frame(maxHeight: .infinity)
-        .glassEffect(.regular, in: .rect(cornerRadius: 26, style: .continuous))
+        .themedPanel(theme, cornerRadius: 26)
         .padding(12)
         .task { await store.refreshPlaylists() }
         .task(id: query) { await runSearch() }
@@ -67,7 +68,7 @@ struct LibraryPanel: View {
                 .buttonStyle(.plain)
             }
             Text(isSearching ? "Search" : openPlaylist?.name ?? "Library")
-                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .font(theme.font(24, .heavy))
                 .lineLimit(1)
             Spacer()
             if let openPlaylist, !isSearching {
@@ -94,7 +95,7 @@ struct LibraryPanel: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(.white.opacity(0.1), in: .capsule)
+        .background(.white.opacity(0.1), in: .rect(cornerRadius: theme.cornerRadius(18), style: .continuous))
     }
 
     @ViewBuilder
@@ -135,6 +136,7 @@ struct LibraryPanel: View {
 }
 
 private struct PlaylistRow: View {
+    @Environment(\.uiTheme) private var theme
     let playlist: Playlist
     let action: () -> Void
 
@@ -147,20 +149,20 @@ private struct PlaylistRow: View {
             HStack(spacing: 12) {
                 ArtworkImage(image: artwork)
                     .frame(width: 46, height: 46)
-                    .clipShape(.rect(cornerRadius: 9, style: .continuous))
+                    .clipShape(.rect(cornerRadius: theme.cornerRadius(9), style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(playlist.name)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(theme.font(14, .semibold))
                         .lineLimit(1)
                     Text("\(playlist.trackCount) songs")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(theme.font(12, .medium))
                         .foregroundStyle(.white.opacity(0.55))
                 }
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.white)
             .padding(6)
-            .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: 12, style: .continuous))
+            .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(12), style: .continuous))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -175,6 +177,7 @@ private struct PlaylistRow: View {
 }
 
 private struct TrackRow: View {
+    @Environment(\.uiTheme) private var theme
     let track: Track
     let isCurrent: Bool
     let action: () -> Void
@@ -189,7 +192,7 @@ private struct TrackRow: View {
                         .font(.system(size: 14, weight: isCurrent ? .heavy : .semibold, design: .rounded))
                         .lineLimit(1)
                     Text(track.artist)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(theme.font(12, .medium))
                         .foregroundStyle(.white.opacity(0.55))
                         .lineLimit(1)
                 }
@@ -201,7 +204,7 @@ private struct TrackRow: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: 10, style: .continuous))
+            .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(10), style: .continuous))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

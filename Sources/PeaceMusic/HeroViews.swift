@@ -27,6 +27,7 @@ struct ArtworkImage: View {
 
 /// Square cover that leans toward the pointer and settles back when paused.
 struct CoverHero: View {
+    @Environment(\.uiTheme) private var theme
     let image: NSImage?
     let isPlaying: Bool
     let size: CGFloat
@@ -36,9 +37,9 @@ struct CoverHero: View {
     var body: some View {
         ArtworkImage(image: image)
             .frame(width: size, height: size)
-            .clipShape(.rect(cornerRadius: size * 0.05, style: .continuous))
+            .clipShape(.rect(cornerRadius: theme.cornerRadius(size * 0.05), style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: size * 0.05, style: .continuous)
+                RoundedRectangle(cornerRadius: theme.cornerRadius(size * 0.05), style: .continuous)
                     .strokeBorder(.white.opacity(0.14), lineWidth: 1)
             }
             .shadow(color: .black.opacity(isPlaying ? 0.5 : 0.28), radius: isPlaying ? 44 : 18, y: isPlaying ? 26 : 10)

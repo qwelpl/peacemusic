@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LyricsPanel: View {
+    @Environment(\.uiTheme) private var theme
     @Environment(PlayerStore.self) private var store
 
     var body: some View {
@@ -11,7 +12,7 @@ struct LyricsPanel: View {
             case .plain(let text):
                 ScrollView(showsIndicators: false) {
                     Text(text)
-                        .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        .font(theme.font(26, .semibold))
                         .lineSpacing(10)
                         .foregroundStyle(.white.opacity(0.85))
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -40,11 +41,12 @@ struct LyricsPanel: View {
 }
 
 private struct LyricsMessage: View {
+    @Environment(\.uiTheme) private var theme
     let text: String
 
     var body: some View {
         Text(text)
-            .font(.system(size: 30, weight: .bold, design: .rounded))
+            .font(theme.font(30, .bold))
             .foregroundStyle(.white.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -83,6 +85,7 @@ private struct SyncedLyrics: View {
 }
 
 private struct LyricRow: View {
+    @Environment(\.uiTheme) private var theme
     let line: LyricLine
     let distance: Int
 
@@ -101,9 +104,9 @@ private struct LyricRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .blur(radius: isHovered ? 0 : min(Double(distance) * 0.9, 4.5))
+        .blur(radius: isHovered || theme == .mono ? 0 : min(Double(distance) * 0.9, 4.5))
         .opacity(isActive ? 1 : isHovered ? 0.8 : max(0.5 - Double(distance) * 0.05, 0.22))
-        .scaleEffect(isActive ? 1 : 0.95, anchor: .leading)
+        .scaleEffect(isActive || theme == .mono ? 1 : 0.95, anchor: .leading)
         .animation(.spring(response: 0.6, dampingFraction: 0.78), value: distance)
     }
 
@@ -116,11 +119,11 @@ private struct LyricRow: View {
                 wordTimedText(words, position: store.lyricPosition(at: context.date))
             }
         } else {
-            Text(line.text).font(Self.font).foregroundStyle(.white)
+            Text(line.text).font(font).foregroundStyle(.white)
         }
     }
 
-    private static let font = Font.system(size: 40, weight: .heavy, design: .rounded)
+    private var font: Font { theme.font(40, .heavy) }
 
     /// Each word lights up over the time it is really sung, and wraps like normal text.
     private func wordTimedText(_ words: [LyricWord], position: Double) -> Text {
@@ -128,10 +131,12 @@ private struct LyricRow: View {
         for (index, word) in words.enumerated() {
             let lit = min(max((position - word.time) / max(word.duration, 0.12), 0), 1)
             var piece = AttributedString(index == 0 ? word.text : " " + word.text)
-            piece.foregroundColor = .white.opacity(0.4 + 0.6 * lit)
+            // Glass words glow in gradually. Mono words switch on like a display.
+            let brightness = theme == .glass ? 0.4 + 0.6 * lit : (lit > 0 ? 1 : 0.32)
+            piece.foregroundColor = .white.opacity(brightness)
             string += piece
         }
-        return Text(string).font(Self.font)
+        return Text(string).font(font)
     }
 }
 

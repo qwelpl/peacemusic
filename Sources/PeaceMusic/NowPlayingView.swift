@@ -13,6 +13,7 @@ enum PlayerMode: String, CaseIterable {
 struct NowPlayingView: View {
     @Environment(PlayerStore.self) private var store
 
+    @AppStorage("uiTheme") private var themeRaw = UITheme.glass.rawValue
     @AppStorage("playerMode") private var modeRaw = PlayerMode.turntable.rawValue
     @AppStorage("heroStyle") private var heroStyleRaw = HeroStyle.vinyl.rawValue
     @AppStorage("showsLyrics") private var showsLyrics = true
@@ -21,6 +22,7 @@ struct NowPlayingView: View {
     @State private var isIdle = false
     @FocusState private var isFocused: Bool
 
+    private var theme: UITheme { UITheme(rawValue: themeRaw) ?? .glass }
     private var mode: PlayerMode { PlayerMode(rawValue: modeRaw) ?? .turntable }
     private var heroStyle: HeroStyle { HeroStyle(rawValue: heroStyleRaw) ?? .vinyl }
     private var chromeVisible: Bool { !isIdle || !store.isPlaying || showsLibrary }
@@ -52,6 +54,7 @@ struct NowPlayingView: View {
         }
         .overlay(alignment: .topTrailing) { topBar }
         .overlay(alignment: .top) { syncToast }
+        .environment(\.uiTheme, theme)
         .preferredColorScheme(.dark)
         .focusable()
         .focusEffectDisabled()
@@ -64,6 +67,7 @@ struct NowPlayingView: View {
         .onKeyPress(.leftArrow) { store.previous(); return .handled }
         .onKeyPress(.rightArrow) { store.next(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "m")) { _ in switchMode(); return .handled }
+        .onKeyPress(characters: .init(charactersIn: "t")) { _ in switchTheme(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "[")) { _ in store.nudgeLyrics(by: -0.1); return .handled }
         .onKeyPress(characters: .init(charactersIn: "]")) { _ in store.nudgeLyrics(by: 0.1); return .handled }
         .onKeyPress(characters: .init(charactersIn: "\\")) { _ in store.resetLyricOffset(); return .handled }
@@ -99,6 +103,10 @@ struct NowPlayingView: View {
 
     private func switchMode() {
         withAnimation(.easeInOut(duration: 0.5)) { modeRaw = mode.next.rawValue }
+    }
+
+    private func switchTheme() {
+        withAnimation(.easeInOut(duration: 0.25)) { themeRaw = theme.next.rawValue }
     }
 
     private func toggleHero() {
@@ -170,21 +178,22 @@ struct NowPlayingView: View {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.track?.title ?? "")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .font(theme.font(24, .heavy))
                         .lineLimit(1)
                     Text([store.track?.artist, store.track?.album]
                         .compactMap { $0 }
                         .filter { !$0.isEmpty }
                         .joined(separator: " · "))
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .font(theme.font(15, .medium))
                         .foregroundStyle(.white.opacity(0.68))
                         .lineLimit(1)
                 }
                 .foregroundStyle(.white)
                 .contentTransition(.opacity)
                 Spacer(minLength: 0)
-                GlassCircleButton(
+                PlayerButton(
                     symbol: store.favorited ? "heart.fill" : "heart",
+                    title: store.favorited ? "LIKED" : "LIKE",
                     diameter: 38,
                     iconSize: 15,
                     isOn: store.favorited,
@@ -206,19 +215,25 @@ struct NowPlayingView: View {
     private var topBar: some View {
         GlassEffectContainer(spacing: 10) {
             HStack(spacing: 8) {
-                GlassCircleButton(symbol: "music.note.list", isOn: showsLibrary) {
+                PlayerButton(symbol: "music.note.list", title: "LIBRARY", isOn: showsLibrary) {
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { showsLibrary.toggle() }
                 }
                 .help("Library")
-                GlassCircleButton(symbol: "sparkles", action: switchMode)
+                PlayerButton(symbol: "sparkles", title: "MODE", action: switchMode)
                     .help("Switch mode (M)")
+                PlayerButton(symbol: "circle.lefthalf.filled", title: "THEME", action: switchTheme)
+                    .help("Switch between Liquid Glass and Mono (T)")
                 if mode == .turntable {
-                    GlassCircleButton(symbol: heroStyle == .vinyl ? "photo" : "record.circle", action: toggleHero)
+                    PlayerButton(
+                        symbol: heroStyle == .vinyl ? "photo" : "record.circle",
+                        title: heroStyle == .vinyl ? "COVER" : "VINYL",
+                        action: toggleHero
+                    )
                         .help("Switch between vinyl and cover (V)")
-                    GlassCircleButton(symbol: "quote.bubble", isOn: showsLyrics) { showsLyrics.toggle() }
+                    PlayerButton(symbol: "quote.bubble", title: "LYRICS", isOn: showsLyrics) { showsLyrics.toggle() }
                         .help("Lyrics (L)")
                 }
-                GlassCircleButton(symbol: "arrow.up.left.and.arrow.down.right", action: toggleFullScreen)
+                PlayerButton(symbol: "arrow.up.left.and.arrow.down.right", title: "FULL", action: toggleFullScreen)
                     .help("Full screen (F)")
             }
         }
@@ -231,11 +246,11 @@ struct NowPlayingView: View {
     private var syncToast: some View {
         if let message = store.syncMessage {
             Text(message)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(theme.font(13, .semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 9)
-                .glassEffect(.regular, in: .capsule)
+                .themedPanel(theme, cornerRadius: 20)
                 .padding(.top, 20)
                 .transition(.opacity)
         }
@@ -276,6 +291,7 @@ private struct VinylHeroProgress: View {
 }
 
 private struct EmptyStateView: View {
+    @Environment(\.uiTheme) private var theme
     let openLibrary: () -> Void
 
     @Environment(PlayerStore.self) private var store
@@ -285,21 +301,21 @@ private struct EmptyStateView: View {
             Image(systemName: icon)
                 .font(.system(size: 56, weight: .light))
             Text(title)
-                .font(.system(size: 32, weight: .heavy, design: .rounded))
+                .font(theme.font(32, .heavy))
             Text(message)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .font(theme.font(15, .medium))
                 .foregroundStyle(.white.opacity(0.68))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
             Button(action: action) {
                 Text(buttonTitle)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(theme.font(14, .bold))
                     .padding(.horizontal, 22)
                     .padding(.vertical, 11)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
-            .glassEffect(.clear.interactive(), in: .capsule)
+            .themedPanel(theme, cornerRadius: 20)
             .padding(.top, 6)
         }
         .foregroundStyle(.white)

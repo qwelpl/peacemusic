@@ -222,6 +222,7 @@ private struct StageLayout {
 }
 
 private struct StageFooter: View {
+    @Environment(\.uiTheme) private var theme
     let chromeVisible: Bool
 
     @Environment(PlayerStore.self) private var store
@@ -230,13 +231,13 @@ private struct StageFooter: View {
         HStack(spacing: 14) {
             ArtworkImage(image: store.artwork)
                 .frame(width: 52, height: 52)
-                .clipShape(.rect(cornerRadius: 10, style: .continuous))
+                .clipShape(.rect(cornerRadius: theme.cornerRadius(10), style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text(store.track?.title ?? "")
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .font(theme.font(15, .heavy))
                     .lineLimit(1)
                 Text(store.track?.artist ?? "")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .font(theme.font(13, .medium))
                     .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(1)
             }
@@ -246,14 +247,16 @@ private struct StageFooter: View {
                 ProgressRow().frame(width: 280)
                 GlassEffectContainer(spacing: 10) {
                     HStack(spacing: 8) {
-                        GlassCircleButton(symbol: "backward.fill", diameter: 40, iconSize: 14, action: store.previous)
-                        GlassCircleButton(
+                        PlayerButton(symbol: "backward.fill", title: "PREV", diameter: 40, iconSize: 14, action: store.previous)
+                        PlayerButton(
                             symbol: store.isPlaying ? "pause.fill" : "play.fill",
+                            title: store.isPlaying ? "PAUSE" : "PLAY",
                             diameter: 48,
                             iconSize: 18,
+                            monoWidth: 70,
                             action: store.togglePlayPause
                         )
-                        GlassCircleButton(symbol: "forward.fill", diameter: 40, iconSize: 14, action: store.next)
+                        PlayerButton(symbol: "forward.fill", title: "NEXT", diameter: 40, iconSize: 14, action: store.next)
                     }
                 }
             }
