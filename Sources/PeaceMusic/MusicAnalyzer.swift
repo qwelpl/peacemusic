@@ -3,102 +3,158 @@ import CoreAudio
 import Foundation
 import os
 
-/// Finds low-end hits in a stream of samples. Tracks are mastered at very different
-/// levels, so every threshold is relative to the recent signal instead of absolute.
-final class BassDetector {
-    private static let hopSeconds = 0.0116
-    private static let minimumGap = 0.17
-    private static let onsetRatio: Float = 1.45
-    private static let silence: Float = 0.0006
-    /// Below this share of total energy there is no real bass, so hits come from the full mix.
-    private static let bassShare: Float = 0.22
-
-    private(set) var level: Float = 0
-    private(set) var onsetCount = 0
-
-    private let hopLength: Int
-    private let hopDuration: Double
-    // One-pole cascade around 150 Hz, which is cheap enough for the audio thread.
-    private let coefficient: Float
-    private var lowA: Float = 0
-    private var lowB: Float = 0
-    private var lowSum: Float = 0
-    private var fullSum: Float = 0
-    private var hopFill = 0
+/// Follows one frequency band, always relative to the recent signal because tracks are
+/// mastered at very different levels.
+private struct BandTracker {
+    private var smooth: Float = 0
     private var average: Float = 0
     private var previous: Float = 0
     private var peak: Float = 0.001
     private var sinceOnset = 1.0
-    private var smoothLevel: Float = 0
-    /// Hops left before the running average means anything and hits can count.
+
+    private(set) var level: Float = 0
+
+    /// Returns whether this hop is a new hit.
+    mutating func update(
+        _ value: Float, hop: Double, isWarmingUp: Bool, ratio: Float, minimumGap: Double, silence: Float
+    ) -> Bool {
+        sinceOnset += hop
+        peak = max(peak * 0.9995, value)
+        smooth += (value >= smooth ? 0.6 : 0.1) * (value - smooth)
+        // Measured from the running average, so a dense mix still pumps and doesn't just sit high.
+        let floor = average * 0.6
+        level = min(max((smooth - floor) / max(peak - floor, 0.001), 0), 1)
+
+        var isHit = false
+        if isWarmingUp {
+            average += (value - average) * 0.2
+        } else {
+            isHit = value > silence && value > previous && value > average * ratio && sinceOnset >= minimumGap
+            if isHit { sinceOnset = 0 }
+            average += (value - average) * 0.02
+        }
+        previous = value
+        return isHit
+    }
+}
+
+/// Splits samples into bass, mids and highs and finds hits in them.
+final class MusicDetector {
+    private static let hopSeconds = 0.0116
+    private static let silence: Float = 0.0006
+    /// Below this share of total energy there is no real bass, so hits come from the full mix.
+    private static let bassShare: Float = 0.22
+
+    private(set) var onsetCount = 0
+    private(set) var midOnsetCount = 0
+    private(set) var isSilent = true
+    private(set) var loudest: Float = 0
+
+    var bassLevel: Float { kick.level }
+    var midLevel: Float { mid.level }
+    var highLevel: Float { high.level }
+
+    private let hopLength: Int
+    private let hopDuration: Double
+    private let lowCoefficient: Float
+    private let midCoefficient: Float
+    private var lowA: Float = 0
+    private var lowB: Float = 0
+    private var upper: Float = 0
+    private var lowSum: Float = 0
+    private var midSum: Float = 0
+    private var highSum: Float = 0
+    private var fullSum: Float = 0
+    private var hopFill = 0
+    private var kick = BandTracker()
+    private var mid = BandTracker()
+    private var high = BandTracker()
+    /// Hops left before running averages mean anything and hits can count.
     private var warmupHops = 30
 
     init(sampleRate: Double) {
         hopLength = max(Int(sampleRate * Self.hopSeconds), 1)
         hopDuration = Double(hopLength) / sampleRate
-        coefficient = Float(1 - exp(-2 * Double.pi * 150 / sampleRate))
+        lowCoefficient = Float(1 - exp(-2 * Double.pi * 150 / sampleRate))
+        midCoefficient = Float(1 - exp(-2 * Double.pi * 2200 / sampleRate))
     }
 
     /// Reads `frames` samples, taking every `stride`th value of an interleaved buffer.
     func consume(_ samples: UnsafePointer<Float>, frames: Int, stride: Int) {
         for frame in 0..<frames {
             let sample = samples[frame * stride]
-            lowA += (sample - lowA) * coefficient
-            lowB += (lowA - lowB) * coefficient
+            // One-pole filters are cheap enough for the audio thread.
+            lowA += (sample - lowA) * lowCoefficient
+            lowB += (lowA - lowB) * lowCoefficient
+            upper += (sample - upper) * midCoefficient
+            let midSample = upper - lowB
+            let highSample = sample - upper
             lowSum += lowB * lowB
+            midSum += midSample * midSample
+            highSum += highSample * highSample
             fullSum += sample * sample
+            loudest = max(loudest, abs(sample))
             hopFill += 1
             if hopFill == hopLength { finishHop() }
         }
     }
 
     private func finishHop() {
-        let low = (lowSum / Float(hopLength)).squareRoot()
-        let full = (fullSum / Float(hopLength)).squareRoot()
+        let count = Float(hopLength)
+        let lowValue = (lowSum / count).squareRoot()
+        let midValue = (midSum / count).squareRoot()
+        let highValue = (highSum / count).squareRoot()
+        let full = (fullSum / count).squareRoot()
         lowSum = 0
+        midSum = 0
+        highSum = 0
         fullSum = 0
         hopFill = 0
-        sinceOnset += hopDuration
+        isSilent = full <= Self.silence
 
-        let feature = low >= full * Self.bassShare ? low : full
-        peak = max(peak * 0.9995, feature)
-        smoothLevel += ((feature >= smoothLevel ? 0.6 : 0.09) * (feature - smoothLevel))
-        level = min(smoothLevel / max(peak, 0.001), 1)
-
-        let isRising = feature > previous
-        if warmupHops > 0 {
-            warmupHops -= 1
-            average += (feature - average) * 0.2
-            previous = feature
-            return
-        }
-        if feature > Self.silence,
-           isRising,
-           feature > average * Self.onsetRatio,
-           sinceOnset >= Self.minimumGap {
+        let isWarmingUp = warmupHops > 0
+        if isWarmingUp { warmupHops -= 1 }
+        let kickValue = lowValue >= full * Self.bassShare ? lowValue : full
+        if kick.update(kickValue, hop: hopDuration, isWarmingUp: isWarmingUp, ratio: 1.45, minimumGap: 0.17, silence: Self.silence) {
             onsetCount += 1
-            sinceOnset = 0
         }
-        average += (feature - average) * 0.02
-        previous = feature
+        if mid.update(midValue, hop: hopDuration, isWarmingUp: isWarmingUp, ratio: 1.6, minimumGap: 0.14, silence: Self.silence) {
+            midOnsetCount += 1
+        }
+        _ = high.update(highValue, hop: hopDuration, isWarmingUp: isWarmingUp, ratio: 2, minimumGap: 0.1, silence: Self.silence)
     }
+
+    /// Clears the peak reading for the diagnostic log.
+    func resetLoudest() { loudest = 0 }
 }
 
 /// Listens to the Music app's audio only. Samples are measured and thrown away, never
 /// stored or sent anywhere.
-final class BassAnalyzer: @unchecked Sendable {
+final class MusicAnalyzer: @unchecked Sendable {
+    struct Onset {
+        let date: Date
+        let isBass: Bool
+    }
+
     struct Reading {
-        var level: Double = 0
-        var onsets: [Date] = []
+        var bass = 0.0
+        var mid = 0.0
+        var high = 0.0
+        var onsets: [Onset] = []
+        /// False when nothing is reaching the app, as when permission was declined.
+        var hasSignal = false
     }
 
     private struct Shared {
-        var level: Float = 0
-        var onsets: [Date] = []
+        var bass: Float = 0
+        var mid: Float = 0
+        var high: Float = 0
+        var onsets: [Onset] = []
+        var lastSignal = Date.distantPast
     }
 
-    private static let keptOnsets = 6
-    private static let logger = Logger(subsystem: "com.qwelpl.peacemusic", category: "bass")
+    private static let keptOnsets = 10
+    private static let logger = Logger(subsystem: "com.qwelpl.peacemusic", category: "audio")
 
     private let shared = OSAllocatedUnfairLock(initialState: Shared())
     private let ioQueue = DispatchQueue(label: "peace.bass-analyzer", qos: .userInteractive)
@@ -108,10 +164,18 @@ final class BassAnalyzer: @unchecked Sendable {
     private var outputDevice = AudioObjectID(kAudioObjectUnknown)
     private var tappedProcesses: [AudioObjectID] = []
     private var demoTimer: DispatchSourceTimer?
-    private var hasLoggedSignal = false
+    private var lastDiagnostic = Date.distantPast
 
     var reading: Reading {
-        shared.withLock { Reading(level: Double($0.level), onsets: $0.onsets) }
+        shared.withLock { state in
+            Reading(
+                bass: Double(state.bass),
+                mid: Double(state.mid),
+                high: Double(state.high),
+                onsets: state.onsets,
+                hasSignal: Date().timeIntervalSince(state.lastSignal) < 1.5
+            )
+        }
     }
 
     deinit { stop() }
@@ -145,7 +209,6 @@ final class BassAnalyzer: @unchecked Sendable {
         tapID = AudioObjectID(kAudioObjectUnknown)
         tappedProcesses = []
         outputDevice = AudioObjectID(kAudioObjectUnknown)
-        hasLoggedSignal = false
         shared.withLock { $0 = Shared() }
     }
 
@@ -184,7 +247,7 @@ final class BassAnalyzer: @unchecked Sendable {
         guard AudioHardwareCreateAggregateDevice(configuration as CFDictionary, &newAggregate) == noErr else { return false }
         aggregateID = newAggregate
 
-        let detector = BassDetector(sampleRate: format.mSampleRate)
+        let detector = MusicDetector(sampleRate: format.mSampleRate)
         var newProc: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&newProc, newAggregate, ioQueue) { [weak self] _, input, _, _, _ in
             let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
@@ -200,29 +263,38 @@ final class BassAnalyzer: @unchecked Sendable {
         return AudioDeviceStart(newAggregate, newProc) == noErr
     }
 
-    private func feed(_ detector: BassDetector, _ samples: UnsafePointer<Float>, frames: Int, stride: Int) {
-        let before = detector.onsetCount
+    private func feed(_ detector: MusicDetector, _ samples: UnsafePointer<Float>, frames: Int, stride: Int) {
+        let bassBefore = detector.onsetCount
+        let midBefore = detector.midOnsetCount
         detector.consume(samples, frames: frames, stride: stride)
-        let hit = detector.onsetCount > before
-        if hit, !hasLoggedSignal {
-            hasLoggedSignal = true
-            Self.logger.notice("First bass hit detected")
-        }
-        let level = detector.level
+        let bassHit = detector.onsetCount > bassBefore
+        let midHit = detector.midOnsetCount > midBefore
+        let now = Date()
         shared.withLock { state in
-            state.level = level
-            if hit {
-                state.onsets.append(Date())
-                if state.onsets.count > Self.keptOnsets { state.onsets.removeFirst() }
+            state.bass = detector.bassLevel
+            state.mid = detector.midLevel
+            state.high = detector.highLevel
+            if !detector.isSilent { state.lastSignal = now }
+            if bassHit { state.onsets.append(Onset(date: now, isBass: true)) }
+            if midHit { state.onsets.append(Onset(date: now, isBass: false)) }
+            if state.onsets.count > Self.keptOnsets {
+                state.onsets.removeFirst(state.onsets.count - Self.keptOnsets)
             }
+        }
+        if now.timeIntervalSince(lastDiagnostic) >= 2 {
+            lastDiagnostic = now
+            let loudest = detector.loudest
+            let hits = detector.onsetCount
+            Self.logger.debug("peak=\(loudest, privacy: .public) bassHits=\(hits, privacy: .public)")
+            detector.resetLoudest()
         }
     }
 
-    /// Drives the real detector with a generated drum loop, for `--demo-instrumental`.
+    /// Drives the real detector with a generated drum loop, for demo runs.
     func startDemo() {
         guard demoTimer == nil else { return }
         let sampleRate = 44100.0
-        let detector = BassDetector(sampleRate: sampleRate)
+        let detector = MusicDetector(sampleRate: sampleRate)
         var position = 0
         var buffer = [Float](repeating: 0, count: 441)
         let timer = DispatchSource.makeTimerSource(queue: ioQueue)
@@ -231,7 +303,12 @@ final class BassAnalyzer: @unchecked Sendable {
             for index in buffer.indices {
                 let time = Double(position + index) / sampleRate
                 let sinceKick = time.truncatingRemainder(dividingBy: 0.5)
-                buffer[index] = Float(sin(2 * .pi * 58 * sinceKick) * exp(-sinceKick * 11) * 0.8)
+                let sinceSnare = (time + 0.25).truncatingRemainder(dividingBy: 1)
+                let sinceHat = time.truncatingRemainder(dividingBy: 0.125)
+                let kick = sin(2 * .pi * 58 * sinceKick) * exp(-sinceKick * 11) * 0.7
+                let snare = sin(2 * .pi * 720 * sinceSnare) * exp(-sinceSnare * 20) * 0.35
+                let hat = Double.random(in: -1...1) * exp(-sinceHat * 60) * 0.12
+                buffer[index] = Float(kick + snare + hat)
             }
             position += buffer.count
             buffer.withUnsafeBufferPointer {

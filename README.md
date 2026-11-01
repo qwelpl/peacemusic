@@ -8,7 +8,7 @@ Peace controls the Music app over Apple Events, so Music does the playing and yo
 
 - **Turntable:** spinning record or tilting cover, liquid background, scrolling lyrics.
 - **Stage:** the current lyric fills the window in giant poster type, with the album art moving through the letters and words landing one by one.
-- **Halftone:** the album art becomes a field of printed dots, and each sung word sends a ripple through them. Monospace interface.
+- **Halftone:** the album art becomes a field of printed dots that moves with the music.
 
 ## Themes
 
@@ -42,7 +42,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 
 ## Audio
 
-When nobody is singing in Halftone, Peace taps the Music app's audio so the dots can follow the bass. macOS asks for System Audio Recording permission the first time. Audio is measured on your Mac and never recorded or sent anywhere. If you decline, the dots just drift without ripples.
+Halftone taps the Music app's audio so the dots can follow the song: bass sends out rings and swells the dots, mids flow through the field and highs sparkle. macOS asks for System Audio Recording permission the first time. Audio is measured on your Mac and never recorded or sent anywhere. If you decline, sung words drive the ripples instead.
 
 `open build/Peace.app --args --demo-instrumental` shows this with a generated drum loop.
 

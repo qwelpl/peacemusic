@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Print-inspired mode: the album art is a field of living dots. Every sung word sends a
-/// ripple through it, and when nobody is singing the bass of the track does instead.
+/// Print-inspired mode: the album art is a field of dots that moves with the music. Bass
+/// sends out rings and swells the dots, mids flow through the field and highs sparkle.
+/// Without audio access, sung words drive the ripples instead.
 struct HalftoneView: View {
     let chromeVisible: Bool
 
@@ -41,65 +42,57 @@ struct HalftoneView: View {
 private struct HalftoneField: View {
     @Environment(PlayerStore.self) private var store
     @State private var renderer = HalftoneRenderer()
-    @State private var analyzer = BassAnalyzer()
+    @State private var analyzer = MusicAnalyzer()
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !store.isPlaying)) { context in
             let date = context.date
-            let isWordless = isWordless
-            let bass = isWordless ? analyzer.reading : BassAnalyzer.Reading()
+            let audio = analyzer.reading
             Canvas(opaque: true) { graphics, size in
                 renderer.draw(
                     in: &graphics,
                     size: size,
                     artwork: store.artwork,
                     time: date.timeIntervalSinceReferenceDate,
-                    ripples: isWordless
-                        ? bassRipples(bass, at: date)
+                    ripples: audio.hasSignal
+                        ? audioRipples(audio, at: date)
                         : ripples(position: store.lyricPosition(at: date)),
-                    bassLevel: bass.level
+                    audio: audio
                 )
             }
         }
         .allowsHitTesting(false)
-        .onChange(of: listeningKey, initial: true) { _, _ in
-            guard isWordless else { return }
-            // Audio is only tapped once a track needs it, so the permission prompt
-            // doesn't appear for someone who only ever plays songs with lyrics.
-            if store.isDemo { analyzer.startDemo() } else { analyzer.start() }
+        .task {
+            if store.isDemo {
+                analyzer.startDemo()
+                return
+            }
+            // Repeats so it picks up Music launching later or a new output device.
+            while !Task.isCancelled {
+                analyzer.start()
+                try? await Task.sleep(for: .seconds(3))
+            }
         }
         .onDisappear { analyzer.stop() }
     }
 
-    /// True when no timed words are on screen: instrumentals, songs without synced
-    /// lyrics, and breaks between verses.
-    private var isWordless: Bool {
-        switch store.lyrics {
-        case .loading:
-            false
-        case .synced(let lines):
-            store.lyricIndex.map { lines[$0].isInterlude } ?? true
-        case .none, .instrumental, .plain:
-            true
-        }
-    }
-
-    /// Changes when listening should begin, or reconnect after a new track starts.
-    private var listeningKey: String {
-        "\(isWordless)-\(store.track?.id ?? "")"
-    }
-
-    private func bassRipples(_ bass: BassAnalyzer.Reading, at date: Date) -> [HalftoneRipple] {
-        bass.onsets.compactMap { onset in
-            let age = date.timeIntervalSince(onset)
+    private func audioRipples(_ audio: MusicAnalyzer.Reading, at date: Date) -> [HalftoneRipple] {
+        audio.onsets.compactMap { onset in
+            let age = date.timeIntervalSince(onset.date)
             guard age >= 0, age < HalftoneRipple.lifetime else { return nil }
-            // Hits land near the middle, drifting slowly so the pattern doesn't repeat.
-            let seed = onset.timeIntervalSinceReferenceDate
-            return HalftoneRipple(
-                origin: CGPoint(x: 0.5 + 0.1 * sin(seed * 0.7), y: 0.42 + 0.08 * cos(seed * 0.9)),
-                age: age,
-                strength: 1.6
-            )
+            let seed = onset.date.timeIntervalSinceReferenceDate
+            // Bass lands near the middle. Mids, like snares, hit around the edges of the art.
+            return onset.isBass
+                ? HalftoneRipple(
+                    origin: CGPoint(x: 0.5 + 0.1 * sin(seed * 0.7), y: 0.42 + 0.08 * cos(seed * 0.9)),
+                    age: age,
+                    strength: 1.6
+                )
+                : HalftoneRipple(
+                    origin: CGPoint(x: 0.5 + 0.42 * sin(seed * 13.7), y: 0.42 + 0.34 * cos(seed * 9.1)),
+                    age: age,
+                    strength: 0.75
+                )
         }
     }
 
@@ -153,6 +146,9 @@ private final class HalftoneRenderer {
     private var morphStart = 0.0
     private var sampledArtwork: NSImage?
     private var paths = [Path?](repeating: nil, count: 216)
+    /// Grows faster with louder mids, so the field flows with the track and never jumps.
+    private var flow = 0.0
+    private var lastTime: Double?
 
     func draw(
         in graphics: inout GraphicsContext,
@@ -160,7 +156,7 @@ private final class HalftoneRenderer {
         artwork: NSImage?,
         time: Double,
         ripples: [HalftoneRipple],
-        bassLevel: Double
+        audio: MusicAnalyzer.Reading
     ) {
         graphics.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(white: 0.02)))
         guard size.width > 0, size.height > 0 else { return }
@@ -174,6 +170,9 @@ private final class HalftoneRenderer {
         // Comparing squared distances against a shared aspect keeps ripples circular.
         let aspect = size.width / size.height
         let morph = min((time - morphStart) / Self.morphDuration, 1)
+        flow += min(time - (lastTime ?? time), 0.1) * (0.5 + audio.mid * 3.2)
+        lastTime = time
+        let waveHeight = audio.mid * pitch * 0.55
         let from = morph < 1 ? previousGrid : nil
 
         for index in paths.indices { paths[index] = nil }
@@ -215,12 +214,18 @@ private final class HalftoneRenderer {
                 }
 
                 let breathing = sin(time * 0.6 + u * 5 + v * 4) * 0.07
-                let radiusUnit = Double(luminance) * (0.92 + breathing + bassLevel * 0.2) + 0.05 + energy * 0.34
+                // A fixed scatter of dots catches the highs, more of them as the highs get louder.
+                let glint = fract(sin(Double(row) * 12.9898 + Double(column) * 78.233) * 43758.5453)
+                let sparkle = glint > 1 - audio.high * 0.3 ? audio.high : 0
+                let radiusUnit = Double(luminance) * (0.84 + breathing + audio.bass * 0.34)
+                    + 0.05 + energy * 0.34 + sparkle * 0.14
                 let radius = min(radiusUnit, 1.12) * pitch * 0.5
                 let x = (Double(column) + 0.5) * pitch + shift + pushX * pitch * 0.7
+                    + sin(v * 9 + flow) * waveHeight
                 let y = (Double(row) + 0.5) * pitch + pushY * pitch * 0.7
+                    + cos(u * 7 + flow * 0.8) * waveHeight
 
-                let lift = Float(min(energy * 0.55, 0.7))
+                let lift = Float(min(energy * 0.55 + sparkle * 0.75, 0.85))
                 let bucket = Self.bucket(for: color + (SIMD3<Float>(repeating: 1) - color) * lift)
                 if paths[bucket] == nil { paths[bucket] = Path() }
                 paths[bucket]!.addEllipse(in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
@@ -231,6 +236,10 @@ private final class HalftoneRenderer {
             guard let path else { continue }
             graphics.fill(path, with: .color(Self.color(forBucket: bucket)))
         }
+    }
+
+    private func fract(_ value: Double) -> Double {
+        value - value.rounded(.down)
     }
 
     /// Limiting colors posterizes the art like spot inks, and lets dots be drawn in batches.
