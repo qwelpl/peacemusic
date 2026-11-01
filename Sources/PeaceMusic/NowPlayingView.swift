@@ -1,9 +1,19 @@
 import AppKit
 import SwiftUI
 
+enum PlayerMode: String, CaseIterable {
+    case turntable, stage
+
+    var next: PlayerMode {
+        let all = Self.allCases
+        return all[(all.firstIndex(of: self)! + 1) % all.count]
+    }
+}
+
 struct NowPlayingView: View {
     @Environment(PlayerStore.self) private var store
 
+    @AppStorage("playerMode") private var modeRaw = PlayerMode.turntable.rawValue
     @AppStorage("heroStyle") private var heroStyleRaw = HeroStyle.vinyl.rawValue
     @AppStorage("showsLyrics") private var showsLyrics = true
     @State private var showsLibrary = false
@@ -11,21 +21,29 @@ struct NowPlayingView: View {
     @State private var isIdle = false
     @FocusState private var isFocused: Bool
 
+    private var mode: PlayerMode { PlayerMode(rawValue: modeRaw) ?? .turntable }
     private var heroStyle: HeroStyle { HeroStyle(rawValue: heroStyleRaw) ?? .vinyl }
     private var chromeVisible: Bool { !isIdle || !store.isPlaying || showsLibrary }
 
     var body: some View {
         ZStack {
-            FluidBackground(
-                colors: store.meshColors,
-                trackID: store.track?.id,
-                isPlaying: store.isPlaying
-            )
+            if store.track == nil || mode == .turntable {
+                FluidBackground(
+                    colors: store.meshColors,
+                    trackID: store.track?.id,
+                    isPlaying: store.isPlaying
+                )
+            }
 
             if store.track == nil {
                 EmptyStateView(openLibrary: { showsLibrary = true })
             } else {
-                player
+                switch mode {
+                case .turntable:
+                    player.transition(.opacity)
+                case .stage:
+                    StageView(chromeVisible: chromeVisible).transition(.opacity)
+                }
             }
 
             libraryOverlay
@@ -42,8 +60,17 @@ struct NowPlayingView: View {
         .onKeyPress(.space) { store.togglePlayPause(); return .handled }
         .onKeyPress(.leftArrow) { store.previous(); return .handled }
         .onKeyPress(.rightArrow) { store.next(); return .handled }
-        .onKeyPress(characters: .init(charactersIn: "l")) { _ in showsLyrics.toggle(); return .handled }
-        .onKeyPress(characters: .init(charactersIn: "v")) { _ in toggleHero(); return .handled }
+        .onKeyPress(characters: .init(charactersIn: "m")) { _ in switchMode(); return .handled }
+        .onKeyPress(characters: .init(charactersIn: "l")) { _ in
+            guard mode == .turntable else { return .ignored }
+            showsLyrics.toggle()
+            return .handled
+        }
+        .onKeyPress(characters: .init(charactersIn: "v")) { _ in
+            guard mode == .turntable else { return .ignored }
+            toggleHero()
+            return .handled
+        }
         .onKeyPress(characters: .init(charactersIn: "f")) { _ in toggleFullScreen(); return .handled }
         .onContinuousHover { _ in markActivity() }
         .task {
@@ -62,6 +89,10 @@ struct NowPlayingView: View {
         if isIdle {
             withAnimation(.easeOut(duration: 0.2)) { isIdle = false }
         }
+    }
+
+    private func switchMode() {
+        withAnimation(.easeInOut(duration: 0.5)) { modeRaw = mode.next.rawValue }
     }
 
     private func toggleHero() {
@@ -173,10 +204,14 @@ struct NowPlayingView: View {
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { showsLibrary.toggle() }
                 }
                 .help("Library")
-                GlassCircleButton(symbol: heroStyle == .vinyl ? "photo" : "record.circle", action: toggleHero)
-                    .help("Switch between vinyl and cover (V)")
-                GlassCircleButton(symbol: "quote.bubble", isOn: showsLyrics) { showsLyrics.toggle() }
-                    .help("Lyrics (L)")
+                GlassCircleButton(symbol: "sparkles", action: switchMode)
+                    .help("Switch mode (M)")
+                if mode == .turntable {
+                    GlassCircleButton(symbol: heroStyle == .vinyl ? "photo" : "record.circle", action: toggleHero)
+                        .help("Switch between vinyl and cover (V)")
+                    GlassCircleButton(symbol: "quote.bubble", isOn: showsLyrics) { showsLyrics.toggle() }
+                        .help("Lyrics (L)")
+                }
                 GlassCircleButton(symbol: "arrow.up.left.and.arrow.down.right", action: toggleFullScreen)
                     .help("Full screen (F)")
             }

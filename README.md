@@ -1,8 +1,13 @@
 # Peace
 
-A good-looking macOS front end for Apple Music: spinning vinyl, liquid backgrounds drawn from the album art, and karaoke-style synced lyrics.
+A good-looking macOS front end for Apple Music: switchable visual modes built around the album art and synced lyrics.
 
 Peace controls the Music app over Apple Events, so Music does the playing and your account stays there. No Apple developer token needed.
+
+## Modes
+
+- **Turntable:** spinning record or tilting cover, liquid background, scrolling lyrics.
+- **Stage:** the current lyric fills the window in giant poster type, with the album art moving through the letters and words landing one by one.
 
 ## Run
 
@@ -22,8 +27,9 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 | --- | --- |
 | Space | Play / pause |
 | Left / Right | Previous / next |
-| L | Show or hide lyrics |
-| V | Switch between vinyl and cover |
+| M | Switch mode (Turntable / Stage) |
+| L | Show or hide lyrics (Turntable) |
+| V | Switch between vinyl and cover (Turntable) |
 | F | Full screen |
 
 ## Network use
