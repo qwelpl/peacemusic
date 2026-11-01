@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Slow liquid mesh built from the artwork's colors, with film grain to hide banding.
 struct FluidBackground: View {
     let colors: [Color]
     let trackID: String?
@@ -50,7 +49,6 @@ private struct FluidMesh: View {
                 let x = Double(column) / Double(last)
                 let y = Double(row) / Double(last)
                 let phase = Double(row * 3 + column * 7)
-                // Outer points stay on the edge so the mesh always covers the window.
                 let dx = (column == 0 || column == last) ? 0 : sin(time * 0.31 + phase) * 0.11
                 let dy = (row == 0 || row == last) ? 0 : cos(time * 0.23 + phase * 1.4) * 0.11
                 points.append(SIMD2(Float(x + dx), Float(y + dy)))

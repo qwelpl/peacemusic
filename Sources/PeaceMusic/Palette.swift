@@ -9,8 +9,6 @@ enum Palette {
         return Color(hue: hue, saturation: 0.6, brightness: 0.28)
     }
 
-    /// Samples the artwork on a grid, so the background keeps the cover's layout
-    /// of color and not only its average tones.
     static func meshColors(from image: NSImage) -> [Color] {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let context = CGContext(
@@ -30,7 +28,6 @@ enum Palette {
             var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0
             NSColor(srgbRed: red, green: green, blue: blue, alpha: 1)
                 .getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
-            // Richer than the source, and never bright enough to wash out white text.
             return Color(
                 hue: hue,
                 saturation: min(saturation * 1.3, 1),
@@ -55,7 +52,7 @@ enum Palette {
     }
 }
 
-/// Used when Music.app has no artwork for a track, which happens with some streamed songs.
+// Music.app has no artwork for some streamed songs.
 enum ArtworkFallback {
     private struct SearchResponse: Decodable {
         struct Item: Decodable { let artworkUrl100: String? }

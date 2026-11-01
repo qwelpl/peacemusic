@@ -29,7 +29,6 @@ struct NowPlayingView: View {
     private var chromeVisible: Bool { !isIdle || !store.isPlaying || showsLibrary }
 
     var body: some View {
-        // Dropping the player while hidden stops its animation and any audio tapping.
         if miniPlayer.isOpen {
             Color.black
         } else {
@@ -151,7 +150,6 @@ struct NowPlayingView: View {
                     details
                 }
                 .frame(width: columnWidth)
-                // Recenters the record and title once the controls below them fade out.
                 .offset(y: chromeVisible ? 0 : 85)
 
                 if lyricsVisible {
@@ -284,7 +282,6 @@ struct NowPlayingView: View {
     }
 }
 
-/// Isolates the once-a-second progress read so that it doesn't re-render the whole player.
 private struct VinylHeroProgress: View {
     let size: CGFloat
 

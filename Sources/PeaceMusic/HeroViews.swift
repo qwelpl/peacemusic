@@ -25,7 +25,6 @@ struct ArtworkImage: View {
     }
 }
 
-/// Square cover that leans toward the pointer and settles back when paused.
 struct CoverHero: View {
     @Environment(\.uiTheme) private var theme
     let image: NSImage?
@@ -60,7 +59,6 @@ struct CoverHero: View {
     }
 }
 
-/// Accumulates rotation only while playing, so the record stops where it was paused.
 final class SpinClock {
     private var angle = 0.0
     private var last: Date?
@@ -134,7 +132,6 @@ struct VinylHero: View {
         }
     }
 
-    /// Light stays fixed while the record turns underneath it, as on a real platter.
     private var sheen: some View {
         Circle()
             .fill(AngularGradient(
@@ -149,7 +146,6 @@ struct VinylHero: View {
                 center: .center
             ))
             .mask {
-                // Keeps the sheen on the grooves and off the label.
                 ZStack {
                     Circle().fill(.white)
                     Circle().fill(.black).frame(width: discSize * 0.41, height: discSize * 0.41)

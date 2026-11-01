@@ -10,10 +10,8 @@ struct LyricLine: Identifiable, Equatable {
     let id: Int
     let time: Double
     let text: String
-    /// Real per-word timing. Nil when the source only times whole lines.
     var words: [LyricWord]? = nil
 
-    /// Instrumental break, drawn as breathing dots.
     var isInterlude: Bool { text.isEmpty }
 }
 
@@ -34,7 +32,6 @@ enum LyricsSource: String, Codable {
 
 private let interludeGap = 7.0
 
-/// Credit lines such as "Written by: X" that some sources store as timed lyrics.
 private func isCredit(_ text: String) -> Bool {
     text.contains(#/^.{0,24}(作词|作曲|编曲|制作|词|曲|lyrics by|written by|composed by|producer|produced by)\s*[:：]/#.ignoresCase())
 }
@@ -63,7 +60,6 @@ enum LRCParser {
         }
         for (index, entry) in timed.enumerated() {
             if entry.1.isEmpty {
-                // A blank marker only earns dots when the silence is long enough to notice.
                 let nextTime = index + 1 < timed.count ? timed[index + 1].0 : duration
                 if nextTime - entry.0 >= interludeGap, !lines.isEmpty, !(lines.last?.isInterlude ?? false) {
                     add(entry.0, "")
@@ -76,7 +72,7 @@ enum LRCParser {
     }
 }
 
-/// Parses NetEase YRC lines: `[lineStartMs,lineMs](wordStartMs,wordMs,0)word (…)word`.
+/// NetEase YRC: `[lineStartMs,lineMs](wordStartMs,wordMs,0)word (…)word`
 enum YRCParser {
     static func parse(_ yrc: String) -> [LyricLine] {
         let header = #/^\[(\d+),(\d+)\]/#
@@ -97,7 +93,6 @@ enum YRCParser {
                 let time = Double(part.1)! / 1000
                 let wordDuration = Double(part.2)! / 1000
                 if !cleaned.isEmpty {
-                    // Tokens with no space between them, like "know" + ",", are one visible word.
                     if continuesWord, let last = words.last {
                         words[words.count - 1] = LyricWord(
                             text: last.text + cleaned,
@@ -123,7 +118,6 @@ enum YRCParser {
     }
 }
 
-/// Finds the best lyrics across sources and caches the winner on disk per track.
 final class LyricsClient: @unchecked Sendable {
     private struct LRCLIBItem: Decodable {
         let trackName: String?
@@ -152,7 +146,6 @@ final class LyricsClient: @unchecked Sendable {
         let yrc: Body?
     }
 
-    /// The chosen lyrics in source form.
     struct Resolved: Codable {
         var source: LyricsSource?
         var instrumental = false
@@ -162,13 +155,11 @@ final class LyricsClient: @unchecked Sendable {
     }
 
     private static let durationTolerance = 2.5
-    /// How much of a song's length a version may leave uncovered compared to the fullest one.
     private static let maxMissingShare = 0.12
-    /// Word timing further than this from LRCLIB's timeline is probably a different master.
     private static let maxWordTimingOffset = 1.0
     private static let userAgent = "Mozilla/5.0 PeaceMusic/1.0"
 
-    /// NetEase answers searches with unrelated songs once its cookie is sent back.
+    /// NetEase returns unrelated songs once its cookie is sent back.
     private let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
@@ -179,7 +170,6 @@ final class LyricsClient: @unchecked Sendable {
     private let cacheDirectory: URL = {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let root = base.appendingPathComponent("PeaceMusic", isDirectory: true)
-        // Older caches may hold picks made without the completeness check.
         for old in ["lyrics", "lyrics-v2"] {
             try? FileManager.default.removeItem(at: root.appendingPathComponent(old))
         }
@@ -198,7 +188,6 @@ final class LyricsClient: @unchecked Sendable {
         }
 
         let (resolved, isComplete) = await resolve(track)
-        // A source that failed may have had something better, so the result isn't final.
         if isComplete, !safeID.isEmpty, let data = try? JSONEncoder().encode(resolved) {
             try? data.write(to: cacheFile)
         }
@@ -233,8 +222,7 @@ final class LyricsClient: @unchecked Sendable {
         let wordLines = netEase?.yrc.map(YRCParser.parse) ?? []
         let netEaseLines = netEase?.lrc.map { LRCParser.parse($0, duration: track.duration) } ?? []
 
-        // A length match can't be trusted alone: databases hold lyrics from a shorter edit
-        // filed under the full song. Anything well short of the fullest version is out.
+        // LRCLIB sometimes files a shorter edit under the full-length song.
         let bestCoverage = (parsed + [wordLines, netEaseLines]).map(Self.coverage).max() ?? 0
         func isComplete(_ lines: [LyricLine]) -> Bool {
             !lines.isEmpty && Self.coverage(lines) >= bestCoverage - track.duration * Self.maxMissingShare
@@ -263,8 +251,6 @@ final class LyricsClient: @unchecked Sendable {
 
     // MARK: Scoring
 
-    /// Seconds of the song a version accounts for. Each line only counts for a few seconds,
-    /// so both an early ending and a missing verse in the middle lower the total.
     private static func coverage(_ lines: [LyricLine]) -> Double {
         var total = 0.0
         for (line, next) in zip(lines, lines.dropFirst()) where !line.isInterlude {
@@ -273,8 +259,6 @@ final class LyricsClient: @unchecked Sendable {
         return total
     }
 
-    /// Picks the version whose timeline agrees most with the others, which screens out
-    /// the occasional submission that is shifted or timed by hand against a different cut.
     private static func consensus(_ versions: [String], duration: Double) -> String? {
         guard versions.count > 2 else { return versions.first }
         let parsed = versions.prefix(12).map { LRCParser.parse($0, duration: duration) }
@@ -291,7 +275,6 @@ final class LyricsClient: @unchecked Sendable {
         return best.map { versions[$0.index] } ?? versions.first
     }
 
-    /// Typical time difference across lines that appear in both, if enough of them match.
     static func medianOffset(_ first: [LyricLine], _ second: [LyricLine]) -> Double? {
         var times: [String: Double] = [:]
         for line in second where !line.isInterlude {
@@ -318,7 +301,6 @@ final class LyricsClient: @unchecked Sendable {
         text.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
-    /// Compares titles with any bracketed suffix removed, rejecting other recordings of the song.
     private static func isSameSong(candidate: String, track: Track) -> Bool {
         let variants = ["remix", "mix", "edit", "club", "dub", "live", "cover", "instrumental", "karaoke", "acoustic", "伴奏"]
         let lowerCandidate = candidate.lowercased()
@@ -341,8 +323,7 @@ final class LyricsClient: @unchecked Sendable {
         }
     }
 
-    /// "Official髭男dism" and "OFFICIAL HIGE DANDISM" share no spelling, so a non-Latin artist
-    /// name is accepted on an identical title and a near-identical length instead.
+    /// Transliterated artists can't be string-matched, e.g. Official髭男dism / OFFICIAL HIGE DANDISM.
     private static func isSameSongInAnotherScript(
         _ title: String, artists: [String], difference: Double, track: Track
     ) -> Bool {
@@ -354,7 +335,7 @@ final class LyricsClient: @unchecked Sendable {
 
     // MARK: Sources
 
-    /// Nil means the request failed, as opposed to finding nothing.
+    /// nil = request failed.
     private func lrclibCandidates(_ track: Track) async -> [LRCLIBItem]? {
         var search = URLComponents(string: "https://lrclib.net/api/search")!
         search.queryItems = [
@@ -364,7 +345,7 @@ final class LyricsClient: @unchecked Sendable {
         return await fetch(search.url!)
     }
 
-    /// Nil means the request failed. Empty means no matching song.
+    /// nil = request failed, empty = no match.
     private func netEaseLyrics(_ track: Track) async -> (lrc: String?, yrc: String?)? {
         var search = URLComponents(string: "https://music.163.com/api/search/get")!
         search.queryItems = [
@@ -415,7 +396,6 @@ final class LyricsClient: @unchecked Sendable {
         return nil
     }
 
-    /// "Song (feat. X) - Remastered 2011" becomes "Song".
     static func cleanTitle(_ title: String) -> String {
         var cleaned = title
         cleaned.replace(#/\s*[\(\[](feat|ft|with)\.?\s[^\)\]]*[\)\]]/#.ignoresCase(), with: "")

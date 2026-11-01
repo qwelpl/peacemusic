@@ -131,7 +131,7 @@ struct VolumeRow: View {
         HStack(spacing: 10) {
             Image(systemName: "speaker.fill")
             Scrubber(value: store.volume) { value in
-                // Apple Events are slow, so a drag sends at most 20 per second.
+                // Apple Events are slow, so throttle drags to 20/s.
                 if Date().timeIntervalSince(lastSent) > 0.05 {
                     lastSent = Date()
                     store.setVolume(value)
@@ -144,11 +144,9 @@ struct VolumeRow: View {
     }
 }
 
-/// A liquid glass circle with an icon, or a square outlined label in the Mono theme.
 struct PlayerButton: View {
     enum Style {
         case regular
-        /// No glass surface, for secondary toggles.
         case quiet
     }
 

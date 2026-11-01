@@ -1,9 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Print-inspired mode: the album art is a field of dots that moves with the music. Bass
-/// sends out rings and swells the dots, mids flow through the field and highs sparkle.
-/// Without audio access, sung words drive the ripples instead.
 struct HalftoneView: View {
     let chromeVisible: Bool
 
@@ -40,7 +37,6 @@ struct HalftoneView: View {
 // MARK: Listening
 
 extension View {
-    /// Keeps the analyzer connected to Music for as long as this view is on screen.
     func listensToMusic() -> some View {
         modifier(MusicListening())
     }
@@ -53,8 +49,7 @@ private struct MusicListening: ViewModifier {
     func body(content: Content) -> some View {
         content
             .task {
-                // Repeats so it picks up Music launching later or a new output device. It also
-                // recovers if the old view stops listening just after this one starts.
+                // Music may launch later, or the output device may change.
                 while !Task.isCancelled {
                     if store.isDemo { analyzer.startDemo() } else { analyzer.start() }
                     try? await Task.sleep(for: .seconds(3))
@@ -67,7 +62,6 @@ private struct MusicListening: ViewModifier {
 // MARK: Dot field
 
 struct HalftoneField: View {
-    /// Smaller surfaces need finer dots to still read as the cover.
     var minimumPitch: CGFloat = 12
 
     @Environment(PlayerStore.self) private var store
@@ -101,7 +95,6 @@ struct HalftoneField: View {
             let age = date.timeIntervalSince(onset.date)
             guard age >= 0, age < HalftoneRipple.lifetime else { return nil }
             let seed = onset.date.timeIntervalSinceReferenceDate
-            // Bass lands near the middle. Mids, like snares, hit around the edges of the art.
             return onset.isBass
                 ? HalftoneRipple(
                     origin: CGPoint(x: 0.5 + 0.1 * sin(seed * 0.7), y: 0.42 + 0.08 * cos(seed * 0.9)),
@@ -116,7 +109,6 @@ struct HalftoneField: View {
         }
     }
 
-    /// The most recent word onsets, or line onsets for songs with only line timing.
     private func ripples(position: Double) -> [HalftoneRipple] {
         guard case .synced(let lines) = store.lyrics, let index = store.lyricIndex else { return [] }
         var result: [HalftoneRipple] = []
@@ -125,7 +117,6 @@ struct HalftoneField: View {
             for (wordIndex, onset) in onsets.enumerated().reversed() {
                 let age = position - onset
                 guard age >= 0, age < HalftoneRipple.lifetime, result.count < 5 else { continue }
-                // A fixed sequence of origins, so a word ripples from the same spot on replay.
                 let seed = Double(line.id * 7 + wordIndex)
                 result.append(HalftoneRipple(
                     origin: CGPoint(x: 0.5 + 0.34 * sin(seed * 2.4), y: 0.42 + 0.26 * cos(seed * 1.7)),
@@ -141,7 +132,6 @@ struct HalftoneField: View {
 private struct HalftoneRipple {
     static let lifetime = 1.5
 
-    /// In unit coordinates of the window.
     let origin: CGPoint
     let age: Double
     let strength: Double
@@ -150,12 +140,10 @@ private struct HalftoneRipple {
 private struct HalftoneGrid {
     let columns: Int
     let rows: Int
-    /// Red, green and blue from 0 to 1, row by row.
     let colors: [SIMD3<Float>]
     let luminance: [Float]
 }
 
-/// Holds sampled art between frames and draws the field.
 private final class HalftoneRenderer {
     private static let maxDots: CGFloat = 7000
     private static let colorLevels: Float = 6
@@ -166,7 +154,6 @@ private final class HalftoneRenderer {
     private var morphStart = 0.0
     private var sampledArtwork: NSImage?
     private var paths = [Path?](repeating: nil, count: 216)
-    /// Grows faster with louder mids, so the field flows with the track and never jumps.
     private var flow = 0.0
     private var lastTime: Double?
 
@@ -188,7 +175,6 @@ private final class HalftoneRenderer {
         updateGrid(artwork: artwork, columns: columns, rows: rows, aspect: size.width / size.height, time: time)
         guard let grid else { return }
 
-        // Comparing squared distances against a shared aspect keeps ripples circular.
         let aspect = size.width / size.height
         let morph = min((time - morphStart) / Self.morphDuration, 1)
         flow += min(time - (lastTime ?? time), 0.1) * (0.5 + audio.mid * 3.2)
@@ -200,7 +186,6 @@ private final class HalftoneRenderer {
 
         for row in 0..<rows {
             let v = (Double(row) + 0.5) / Double(rows)
-            // Staggered rows, as on a printing screen.
             let shift = row % 2 == 0 ? 0 : pitch / 2
             for column in 0..<columns {
                 let index = row * columns + column
@@ -209,7 +194,6 @@ private final class HalftoneRenderer {
                 var luminance = grid.luminance[index]
                 var color = grid.colors[index]
                 if let from {
-                    // The new cover spreads outward from the middle.
                     let distance = hypot((u - 0.5) * aspect, v - 0.5)
                     let local = Float(min(max(morph * 2.4 - distance * 1.4, 0), 1))
                     luminance = from.luminance[index] + (luminance - from.luminance[index]) * local
@@ -235,11 +219,8 @@ private final class HalftoneRenderer {
                 }
 
                 let breathing = sin(time * 0.6 + u * 5 + v * 4) * 0.07
-                // A fixed scatter of dots catches the highs, more of them as the highs get louder.
                 let glint = fract(sin(Double(row) * 12.9898 + Double(column) * 78.233) * 43758.5453)
                 let sparkle = glint > 1 - audio.high * 0.3 ? audio.high : 0
-                // The dot's own size stops short of touching its neighbors, so bright covers
-                // keep their texture and the music's movement stays visible.
                 let bodySize = min(Double(luminance) * (0.68 + breathing + audio.bass * 0.3), 0.82)
                 let radiusUnit = bodySize + 0.05 + energy * 0.34 + sparkle * 0.14
                 let radius = min(radiusUnit, 1.08) * pitch * 0.5
@@ -265,7 +246,6 @@ private final class HalftoneRenderer {
         value - value.rounded(.down)
     }
 
-    /// Limiting colors posterizes the art like spot inks, and lets dots be drawn in batches.
     private static func bucket(for color: SIMD3<Float>) -> Int {
         let top = colorLevels - 1
         let red = Int(min(max(color.x, 0), 1) * top + 0.5)
@@ -284,7 +264,6 @@ private final class HalftoneRenderer {
         guard artworkChanged || grid?.columns != columns || grid?.rows != rows else { return }
 
         let next = Self.sample(artwork, columns: columns, rows: rows, aspect: aspect)
-        // Only a new cover animates. A resized window just redraws at the new density.
         if artworkChanged, let grid, grid.columns == columns, grid.rows == rows {
             previousGrid = grid
             morphStart = time
@@ -310,7 +289,6 @@ private final class HalftoneRenderer {
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
               ) else { return blank }
 
-        // Scaled to fill the window, cropping whichever sides overflow.
         let imageWidth = Double(image.width)
         let imageHeight = Double(image.height)
         let scale = max(Double(columns) / imageWidth, Double(rows) / imageHeight)
@@ -337,7 +315,6 @@ private final class HalftoneRenderer {
             let light = color.x * 0.299 + color.y * 0.587 + color.z * 0.114
             let saturated = SIMD3<Float>(repeating: light) + (color - SIMD3<Float>(repeating: light)) * 1.35
             colors[index] = saturated
-            // Lifted, because true luminance would leave dark covers almost empty.
             luminance[index] = pow(light, 0.7)
         }
         return HalftoneGrid(columns: columns, rows: rows, colors: colors, luminance: luminance)

@@ -1,8 +1,6 @@
 import AppKit
 import Foundation
 
-/// Talks to Music.app over Apple Events. All scripts run on one serial queue so
-/// that a slow library query never blocks the UI.
 final class MusicBridge: @unchecked Sendable {
     private let queue = DispatchQueue(label: "peace.music-bridge", qos: .userInitiated)
 
@@ -22,7 +20,6 @@ final class MusicBridge: @unchecked Sendable {
         return result
     }
 
-    /// Escapes a value for use inside an AppleScript string literal.
     private func quoted(_ value: String) -> String {
         let escaped = value
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -36,7 +33,6 @@ final class MusicBridge: @unchecked Sendable {
 
     // MARK: Status
 
-    /// A nil snapshot means the script failed, which is normal for a moment between tracks.
     func fetchSnapshot(completion: @escaping @Sendable (PlayerSnapshot?, BridgeStatus) -> Void) {
         queue.async { [self] in
             guard isRunning else {
@@ -73,7 +69,6 @@ final class MusicBridge: @unchecked Sendable {
             do {
                 let list = try run(source)
                 var snapshot = parseSnapshot(list)
-                // Position is the script's last read, so the moment it returned is close to it.
                 snapshot.capturedAt = Date()
                 completion(snapshot, .ok)
             } catch ScriptError.failed(let code) where code == Self.notAuthorizedCode {
@@ -216,7 +211,6 @@ final class MusicBridge: @unchecked Sendable {
         send("play (first playlist whose persistent ID is \(quoted(playlistID)))")
     }
 
-    /// Playing from a playlist keeps that playlist as the queue.
     func play(trackID: String, playlistID: String?) {
         let container = playlistID.map { "(first playlist whose persistent ID is \(quoted($0)))" } ?? "library playlist 1"
         send("play (first track of \(container) whose persistent ID is \(quoted(trackID)))")

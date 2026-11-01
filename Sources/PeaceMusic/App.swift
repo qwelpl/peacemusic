@@ -16,7 +16,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
         if CommandLine.arguments.contains("--mini") {
-            // Waits for the main window to exist, since opening the panel hides it.
             Task {
                 try? await Task.sleep(for: .seconds(0.5))
                 miniPlayer.open()
@@ -25,12 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Hiding the main window for the mini player mustn't count as closing the app.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         !miniPlayer.isOpen
     }
 
-    /// A Dock click brings back the full player, which may be hidden behind the mini player.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         miniPlayer.close()
         return true

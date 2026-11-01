@@ -31,11 +31,10 @@ final class PlayerStore {
     private let lyricsClient = LyricsClient()
     private var anchorPosition: Double = 0
     private var anchorDate = Date()
-    /// Polls that started before a command can return stale values, so local state wins briefly.
+    // Polls started before a command can return stale values.
     private var commandGuardUntil = Date.distantPast
     private var started = false
     private var syncMessageTask: Task<Void, Never>?
-    /// Slightly early reads as in time, where slightly late reads as broken.
     private static let lyricLead = 0.1
 
     func start() {
@@ -71,7 +70,6 @@ final class PlayerStore {
         return position
     }
 
-    /// The playback position that lyrics should be drawn against.
     func lyricPosition(at date: Date = Date()) -> Double {
         position(at: date) + Self.lyricLead + lyricOffset
     }
@@ -171,7 +169,7 @@ final class PlayerStore {
         UserDefaults.standard.double(forKey: offsetKey(for: track))
     }
 
-    /// Positive values show lyrics earlier. Remembered per song.
+    /// Positive shows lyrics earlier.
     func nudgeLyrics(by amount: Double) {
         setLyricOffset(((lyricOffset + amount) * 10).rounded() / 10)
     }

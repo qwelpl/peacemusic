@@ -124,7 +124,6 @@ struct LibraryPanel: View {
             results = []
             return
         }
-        // Waits for a typing pause. `.task(id:)` cancels this when the query changes.
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         isLoading = true

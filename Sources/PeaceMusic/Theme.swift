@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// How controls and text are drawn, independent of the player mode.
 enum UITheme: String {
     case glass, mono
 
@@ -11,7 +10,6 @@ enum UITheme: String {
         case .glass:
             .system(size: size, weight: weight, design: .rounded)
         case .mono:
-            // Monospace runs wide, so display sizes come down to fit the same layouts.
             .system(size: size >= 20 ? size * 0.85 : size, weight: weight, design: .monospaced)
         }
     }
@@ -27,7 +25,6 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Background for floating panels and labels that aren't buttons.
     @ViewBuilder
     func themedPanel(_ theme: UITheme, cornerRadius: CGFloat) -> some View {
         switch theme {

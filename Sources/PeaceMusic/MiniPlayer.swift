@@ -2,7 +2,6 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// The corner of the panel the pill rests in, which faces the nearest corner of the screen.
 struct MiniPlayerCorner: Equatable {
     var isLeading = false
     var isTop = true
@@ -17,16 +16,12 @@ struct MiniPlayerCorner: Equatable {
     }
 }
 
-/// Swaps between the main window and a small panel pinned above everything else. A pill inside
-/// the panel rests compact and springs open while the pointer is over it. The panel itself never
-/// changes size: resizing a window from an animation while SwiftUI lays it out makes AppKit abort
-/// with too many constraint passes. Its transparent margins let clicks through to what's below.
+// The panel stays a fixed size. Resizing it during SwiftUI layout aborts with too many constraint passes.
 @MainActor
 @Observable
 final class MiniPlayerController {
     static let compactSize = NSSize(width: 300, height: 72)
     static let expandedSize = NSSize(width: 430, height: 156)
-    /// Room around the expanded pill for its shadow.
     static let margin: CGFloat = 24
     static let panelSize = NSSize(
         width: expandedSize.width + margin * 2,
@@ -74,7 +69,7 @@ final class MiniPlayerController {
     func setExpanded(_ expanded: Bool) {
         collapseTask?.cancel()
         guard isOpen, expanded != isExpanded else { return }
-        // The expanded pill fills the panel in every corner, so switching corners here can't jump.
+        // Expanded pill fills the panel, so the corner can change without a jump.
         if !expanded, let panel { settle(panel, animated: true) }
         withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) { isExpanded = expanded }
     }
@@ -83,7 +78,6 @@ final class MiniPlayerController {
         setExpanded(true)
     }
 
-    /// Waits a moment, so briefly leaving the edge doesn't snap it shut.
     fileprivate func pointerExited() {
         collapseTask?.cancel()
         collapseTask = Task { [weak self] in
@@ -97,7 +91,7 @@ final class MiniPlayerController {
         mainWindow = window
         if window.styleMask.contains(.fullScreen) {
             window.toggleFullScreen(nil)
-            // Hiding a window mid-transition would strand an empty full screen Space.
+            // Hiding mid-transition strands an empty full screen Space.
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(0.9))
                 if self?.isOpen == true { window.orderOut(nil) }
@@ -114,16 +108,13 @@ final class MiniPlayerController {
             backing: .buffered,
             defer: false
         )
-        // Setting this resets the level, so it has to come first.
+        // Resets the level, so set it first.
         panel.isFloatingPanel = true
-        // Above the Dock, menu bar and other apps' floating windows, on every Space and over
-        // full screen apps.
         panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.hidesOnDeactivate = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        // Drawn by the pill, since a window shadow would have to be recomputed as it animates.
         panel.hasShadow = false
         panel.isMovableByWindowBackground = true
         panel.isReleasedWhenClosed = false
@@ -133,8 +124,7 @@ final class MiniPlayerController {
             .environment(self)
             .environment(\.musicAnalyzer, analyzer)
         let host = MiniPlayerHostingView(rootView: view)
-        // This controller animates the panel's size. Letting SwiftUI size the window as well makes
-        // each resize demand another layout pass mid-layout, which AppKit aborts on.
+        // Panel size is fixed, don't let SwiftUI resize it.
         host.sizingOptions = []
         host.pillSize = { [weak self] in
             self?.isExpanded == true ? Self.expandedSize : Self.compactSize
@@ -149,7 +139,6 @@ final class MiniPlayerController {
         return panel
     }
 
-    /// Returns to where it was last dragged, unless that display is gone.
     private func place(_ panel: NSPanel) {
         let autosaveName = "PeaceMiniPlayer"
         let didRestore = panel.setFrameUsingName(autosaveName)
@@ -161,7 +150,6 @@ final class MiniPlayerController {
                 y: area.maxY - Self.panelSize.height
             ))
         }
-        // Keeps the top center in place, whatever size the saved frame had.
         panel.setFrame(NSRect(
             x: panel.frame.midX - Self.panelSize.width / 2,
             y: panel.frame.maxY - Self.panelSize.height,
@@ -172,8 +160,6 @@ final class MiniPlayerController {
         settle(panel, animated: false)
     }
 
-    /// Picks the corner of the screen the panel is nearest and keeps the pill on screen, since
-    /// shrinking into a corner that hangs off the edge would hide it.
     private func settle(_ panel: NSPanel, animated: Bool) {
         guard let area = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
         var frame = panel.frame
@@ -197,10 +183,8 @@ private final class MiniPlayerHostingView<Content: View>: NSHostingView<Content>
     private var hoverArea: NSTrackingArea?
     private var isInsidePill = false
 
-    /// Lets one click press a button, instead of the first click only focusing the panel.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    // The panel is never the active window, so this needs to track regardless of focus.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let hoverArea { removeTrackingArea(hoverArea) }
@@ -228,7 +212,6 @@ private final class MiniPlayerHostingView<Content: View>: NSHostingView<Content>
         setInside(false)
     }
 
-    /// Only the pill counts, not the panel's transparent margins.
     private func updateHover(_ event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let size = pillSize()
@@ -259,7 +242,6 @@ private struct MiniPlayerView: View {
 
     var body: some View {
         Group {
-            // Unloaded while hidden, which stops the animation and the audio tap.
             if miniPlayer.isOpen {
                 content
             } else {
@@ -385,7 +367,6 @@ private struct ExpandedMini: View {
     }
 }
 
-/// A spinning record with the cover as its label, ringed by the live spectrum.
 private struct MiniDisc: View {
     let size: CGFloat
 
@@ -437,7 +418,6 @@ private struct MiniSpectrumRing: View {
     let innerRadius: CGFloat
     let reach: CGFloat
 
-    /// Each half of the ring runs lowest to highest, so bass kicks out from one side.
     private static let barCount = SpectrumAnalyzer.bandCount * 2
 
     var body: some View {
@@ -473,7 +453,6 @@ private struct MiniEqualizer: View {
                 let gap: CGFloat = 3
                 let width = (canvas.width - gap * CGFloat(Self.barCount - 1)) / CGFloat(Self.barCount)
                 for bar in 0..<Self.barCount {
-                    // Averages neighboring bands, since five bars cover the whole range.
                     let start = bar * spectrum.count / Self.barCount
                     let end = (bar + 1) * spectrum.count / Self.barCount
                     let value = spectrum[start..<end].reduce(0, +) / Float(end - start)

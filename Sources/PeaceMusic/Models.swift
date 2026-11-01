@@ -32,7 +32,6 @@ struct PlayerSnapshot {
     var shuffle = false
     var repeatMode: RepeatMode = .off
     var favorited = false
-    /// When `position` was read, so the clock isn't skewed by how long the script took.
     var capturedAt = Date()
 }
 

@@ -125,13 +125,11 @@ private struct LyricRow: View {
 
     private var font: Font { theme.font(40, .heavy) }
 
-    /// Each word lights up over the time it is really sung, and wraps like normal text.
     private func wordTimedText(_ words: [LyricWord], position: Double) -> Text {
         var string = AttributedString()
         for (index, word) in words.enumerated() {
             let lit = min(max((position - word.time) / max(word.duration, 0.12), 0), 1)
             var piece = AttributedString(index == 0 ? word.text : " " + word.text)
-            // Glass words glow in gradually. Mono words switch on like a display.
             let brightness = theme == .glass ? 0.4 + 0.6 * lit : (lit > 0 ? 1 : 0.32)
             piece.foregroundColor = .white.opacity(brightness)
             string += piece

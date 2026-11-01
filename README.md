@@ -1,22 +1,22 @@
 # Peace
 
-A good-looking macOS front end for Apple Music: switchable visual modes built around the album art and synced lyrics.
+macOS front end for Apple Music with album art visualizers and synced lyrics.
 
-Peace controls the Music app over Apple Events, so Music does the playing and your account stays there. No Apple developer token needed.
+Controls Music.app over Apple Events, so no developer token is needed.
 
 ## Modes
 
-- **Turntable:** spinning record or tilting cover, liquid background, scrolling lyrics.
-- **Stage:** the current lyric fills the window in giant poster type, with the album art moving through the letters and words landing one by one.
-- **Halftone:** the album art becomes a field of printed dots that moves with the music.
+- Turntable: record or cover, mesh background, scrolling lyrics.
+- Stage: current lyric in full-window type, with the art showing through the letters.
+- Halftone: the art as a dot field that reacts to the audio.
 
 ## Mini player
 
-A compact pill that stays above every other window, on every Space and over full screen apps: a spinning record ringed by the live spectrum, with album art dots moving to the music behind it. Hover over it to spring it open for controls. Drag it anywhere and it remembers the spot. Click `OPEN` or the Dock icon to return to the full player.
+Floats above other windows, on every Space and over full screen apps. Hover to expand, drag to move. It shrinks toward the nearest screen corner. `OPEN` or the Dock icon returns to the full player.
 
 ## Themes
 
-Every mode can use **Liquid Glass** or **Mono**, which has square outlined buttons and monospace type.
+Liquid Glass or Mono, in every mode.
 
 ## Run
 
@@ -47,9 +47,9 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 
 ## Audio
 
-Halftone and the mini player tap the Music app's audio so they can follow the song. In Halftone, bass sends out rings and swells the dots, mids flow through the field and highs sparkle. macOS asks for System Audio Recording permission the first time. Audio is measured on your Mac and never recorded or sent anywhere. If you decline, sung words drive the ripples instead.
+Halftone and the mini player tap Music's audio with a Core Audio process tap, which needs System Audio Recording permission. Audio is analyzed locally and never recorded or sent anywhere. Without permission, Halftone follows the lyric timing instead.
 
-`open build/Peace.app --args --demo-instrumental` shows this with a generated drum loop.
+`open build/Peace.app --args --demo-instrumental` uses a generated drum loop.
 
 ## Network use
 

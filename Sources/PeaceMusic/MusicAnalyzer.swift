@@ -4,8 +4,6 @@ import CoreAudio
 import Foundation
 import os
 
-/// Follows one frequency band, always relative to the recent signal because tracks are
-/// mastered at very different levels.
 private struct BandTracker {
     private var smooth: Float = 0
     private var average: Float = 0
@@ -15,14 +13,12 @@ private struct BandTracker {
 
     private(set) var level: Float = 0
 
-    /// Returns whether this hop is a new hit.
     mutating func update(
         _ value: Float, hop: Double, isWarmingUp: Bool, ratio: Float, minimumGap: Double, silence: Float
     ) -> Bool {
         sinceOnset += hop
         peak = max(peak * 0.9995, value)
         smooth += (value >= smooth ? 0.6 : 0.1) * (value - smooth)
-        // Measured from the running average, so a dense mix still pumps and doesn't just sit high.
         let floor = average * 0.6
         level = min(max((smooth - floor) / max(peak - floor, 0.001), 0), 1)
 
@@ -39,13 +35,11 @@ private struct BandTracker {
     }
 }
 
-/// Measures how loud each part of the frequency range is, on a log scale like hearing.
 final class SpectrumAnalyzer {
     static let bandCount = 24
     private static let log2Size: vDSP_Length = 10
     private static let size = 1 << 10
 
-    /// One value from 0 to 1 per band, lowest frequencies first.
     private(set) var bands = [Float](repeating: 0, count: bandCount)
 
     private let setup: FFTSetup
@@ -103,7 +97,6 @@ final class SpectrumAnalyzer {
                 sum += real[bin] * real[bin] + imaginary[bin] * imaginary[bin]
             }
             let magnitude = (sum / Float(bins.count)).squareRoot()
-            // Each band is judged against its own recent peak, since highs are far quieter than lows.
             peaks[band] = max(peaks[band] * 0.9985, magnitude)
             let target = magnitude < 0.002 ? 0 : pow(magnitude / peaks[band], 1.5)
             bands[band] += (target > bands[band] ? 0.65 : 0.16) * (target - bands[band])
@@ -111,11 +104,9 @@ final class SpectrumAnalyzer {
     }
 }
 
-/// Splits samples into bass, mids and highs and finds hits in them.
 final class MusicDetector {
     private static let hopSeconds = 0.0116
     private static let silence: Float = 0.0006
-    /// Below this share of total energy there is no real bass, so hits come from the full mix.
     private static let bassShare: Float = 0.22
 
     private(set) var onsetCount = 0
@@ -142,7 +133,6 @@ final class MusicDetector {
     private var kick = BandTracker()
     private var mid = BandTracker()
     private var high = BandTracker()
-    /// Hops left before running averages mean anything and hits can count.
     private var warmupHops = 30
 
     let spectrum: SpectrumAnalyzer
@@ -155,12 +145,10 @@ final class MusicDetector {
         midCoefficient = Float(1 - exp(-2 * Double.pi * 2200 / sampleRate))
     }
 
-    /// Reads `frames` samples, taking every `stride`th value of an interleaved buffer.
     func consume(_ samples: UnsafePointer<Float>, frames: Int, stride: Int) {
         for frame in 0..<frames {
             let sample = samples[frame * stride]
             spectrum.add(sample)
-            // One-pole filters are cheap enough for the audio thread.
             lowA += (sample - lowA) * lowCoefficient
             lowB += (lowA - lowB) * lowCoefficient
             upper += (sample - upper) * midCoefficient
@@ -201,12 +189,9 @@ final class MusicDetector {
         _ = high.update(highValue, hop: hopDuration, isWarmingUp: isWarmingUp, ratio: 2, minimumGap: 0.1, silence: Self.silence)
     }
 
-    /// Clears the peak reading for the diagnostic log.
     func resetLoudest() { loudest = 0 }
 }
 
-/// Listens to the Music app's audio only. Samples are measured and thrown away, never
-/// stored or sent anywhere.
 final class MusicAnalyzer: @unchecked Sendable {
     struct Onset {
         let date: Date
@@ -219,7 +204,6 @@ final class MusicAnalyzer: @unchecked Sendable {
         var high = 0.0
         var onsets: [Onset] = []
         var spectrum = [Float](repeating: 0, count: SpectrumAnalyzer.bandCount)
-        /// False when nothing is reaching the app, as when permission was declined.
         var hasSignal = false
     }
 
@@ -234,7 +218,7 @@ final class MusicAnalyzer: @unchecked Sendable {
 
     private static let keptOnsets = 10
     private static let logger = Logger(subsystem: "com.qwelpl.peacemusic", category: "audio")
-    /// Set to a file path to record signal levels when checking that audio is arriving.
+    // Debug: log signal levels to this path.
     private static let diagnosticPath = ProcessInfo.processInfo.environment["PEACE_AUDIO_LOG"]
 
     private let shared = OSAllocatedUnfairLock(initialState: Shared())
@@ -262,7 +246,6 @@ final class MusicAnalyzer: @unchecked Sendable {
 
     deinit { stop() }
 
-    /// Safe to call repeatedly. Reconnects if Music restarted or the output device changed.
     func start() {
         let processes = Self.musicProcesses()
         let device = Self.defaultOutputDevice()
@@ -356,7 +339,7 @@ final class MusicAnalyzer: @unchecked Sendable {
             state.bass = detector.bassLevel
             state.mid = detector.midLevel
             state.high = detector.highLevel
-            // Copied in place so the audio thread doesn't allocate.
+            // No allocation on the audio thread.
             for band in state.spectrum.indices { state.spectrum[band] = detector.spectrum.bands[band] }
             if !detector.isSilent { state.lastSignal = now }
             if bassHit { state.onsets.append(Onset(date: now, isBass: true)) }
@@ -383,7 +366,6 @@ final class MusicAnalyzer: @unchecked Sendable {
         }
     }
 
-    /// Drives the real detector with a generated drum loop, for demo runs.
     func startDemo() {
         guard demoTimer == nil else { return }
         let sampleRate = 44100.0
@@ -446,7 +428,6 @@ final class MusicAnalyzer: @unchecked Sendable {
         return format
     }
 
-    /// Audio processes belonging to Music, which can include helpers as well as the app.
     private static func musicProcesses() -> [AudioObjectID] {
         var property = address(kAudioHardwarePropertyProcessObjectList)
         var size: UInt32 = 0

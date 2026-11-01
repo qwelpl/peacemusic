@@ -1,8 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Poster mode: the current lyric fills the window in giant type, with the album
-/// art showing through the letters.
 struct StageView: View {
     let chromeVisible: Bool
 
@@ -19,7 +17,6 @@ struct StageView: View {
                     let content = content
                     StagePoster(content: content, size: geometry.size)
                         .id(content.key)
-                        // The old line clears first, so giant letters never pile up on each other.
                         .transition(.asymmetric(
                             insertion: .scale(scale: 1.05).combined(with: .opacity)
                                 .animation(.spring(response: 0.3, dampingFraction: 0.86).delay(0.07)),
@@ -54,7 +51,6 @@ struct StageView: View {
 private struct StageContent {
     let key: String
     let text: String
-    /// Nil shows every word at once, because the source only times whole lines.
     let wordTimes: [Double]?
 }
 
@@ -80,7 +76,6 @@ private struct StagePoster: View {
         .frame(width: size.width, height: size.height)
     }
 
-    /// The art drifts slowly, so the letters look like windows onto something moving.
     private func artFill(time: Double) -> some View {
         ZStack {
             Group {
@@ -98,7 +93,6 @@ private struct StagePoster: View {
             .scaleEffect(1.3 + sin(time * 0.11) * 0.06)
             .offset(x: sin(time * 0.17) * size.width * 0.05, y: cos(time * 0.13) * size.height * 0.05)
 
-            // Keeps dark covers from turning the letters into black on black.
             Color.white.opacity(0.16)
         }
         .frame(width: size.width, height: size.height)
@@ -147,7 +141,6 @@ private struct StageRow: Identifiable {
     let fontSize: CGFloat
 }
 
-/// Stacks words into rows that each scale to fill the full width, like a letterpress poster.
 private struct StageLayout {
     static let wordGap: CGFloat = 0.2
     static let rowHeight: CGFloat = 0.86
@@ -175,7 +168,6 @@ private struct StageLayout {
                 total + Self.fontSize(for: group, widths: widths, width: size.width) * Self.rowHeight
             }
             let scale = min(1, size.height / height)
-            // Best when the rows fill the width and the height at the same time.
             let score = scale * min(1, height / size.height)
             if score > best.score {
                 best = (score, groups, scale)
@@ -195,7 +187,6 @@ private struct StageLayout {
         return width / (wordsWidth + gaps) * 100
     }
 
-    /// Greedy split into rows of similar character counts.
     private static func split(words: [String], into rowCount: Int) -> [Range<Int>] {
         var groups: [Range<Int>] = []
         var start = 0
