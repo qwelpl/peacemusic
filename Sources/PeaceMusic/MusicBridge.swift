@@ -36,7 +36,8 @@ final class MusicBridge: @unchecked Sendable {
 
     // MARK: Status
 
-    func fetchSnapshot(completion: @escaping @Sendable (PlayerSnapshot, BridgeStatus) -> Void) {
+    /// A nil snapshot means the script failed, which is normal for a moment between tracks.
+    func fetchSnapshot(completion: @escaping @Sendable (PlayerSnapshot?, BridgeStatus) -> Void) {
         queue.async { [self] in
             guard isRunning else {
                 completion(PlayerSnapshot(), .musicNotRunning)
@@ -71,7 +72,7 @@ final class MusicBridge: @unchecked Sendable {
             } catch ScriptError.failed(let code) where code == Self.notAuthorizedCode {
                 completion(PlayerSnapshot(), .notAuthorized)
             } catch {
-                completion(PlayerSnapshot(), .ok)
+                completion(nil, .ok)
             }
         }
     }

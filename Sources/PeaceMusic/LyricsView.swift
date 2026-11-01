@@ -145,7 +145,6 @@ private struct LyricRow: View {
             .overlay(alignment: .leading) {
                 lyricText
                     .foregroundStyle(.white)
-                    .shadow(color: .white.opacity(0.45), radius: 16)
                     .mask {
                         LinearGradient(
                             stops: [

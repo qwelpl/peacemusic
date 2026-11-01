@@ -129,6 +129,7 @@ struct VinylHero: View {
                 .fill(Color(white: 0.06))
                 .overlay(Circle().strokeBorder(.white.opacity(0.3), lineWidth: 0.5))
                 .frame(width: discSize * 0.028, height: discSize * 0.028)
+            Circle().strokeBorder(.white.opacity(0.12), lineWidth: 1)
         }
     }
 

@@ -71,11 +71,11 @@ final class PlayerStore {
         let (snapshot, newStatus) = await withCheckedContinuation { continuation in
             bridge.fetchSnapshot { continuation.resume(returning: ($0, $1)) }
         }
-        apply(snapshot, status: newStatus)
+        status = newStatus
+        if let snapshot { apply(snapshot) }
     }
 
-    private func apply(_ snapshot: PlayerSnapshot, status newStatus: BridgeStatus) {
-        status = newStatus
+    private func apply(_ snapshot: PlayerSnapshot) {
         let trackChanged = snapshot.track?.id != track?.id
         let guarded = Date() < commandGuardUntil && !trackChanged
 

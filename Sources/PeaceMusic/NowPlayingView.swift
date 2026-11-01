@@ -95,6 +95,8 @@ struct NowPlayingView: View {
                     details
                 }
                 .frame(width: columnWidth)
+                // Recenters the record and title once the controls below them fade out.
+                .offset(y: chromeVisible ? 0 : 85)
 
                 if lyricsVisible {
                     LyricsPanel()
@@ -152,13 +154,16 @@ struct NowPlayingView: View {
                     action: store.toggleFavorite
                 )
                 .help("Favorite")
+                .opacity(chromeVisible ? 1 : 0)
             }
-            ProgressRow()
-            TransportRow()
-            VolumeRow()
+            VStack(spacing: 12) {
+                ProgressRow()
+                TransportRow()
+                VolumeRow()
+            }
+            .opacity(chromeVisible ? 1 : 0)
+            .allowsHitTesting(chromeVisible)
         }
-        .opacity(chromeVisible ? 1 : 0.0)
-        .allowsHitTesting(chromeVisible)
     }
 
     private var topBar: some View {

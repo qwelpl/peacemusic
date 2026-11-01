@@ -17,7 +17,7 @@ struct FluidBackground: View {
             Image(nsImage: Grain.tile)
                 .resizable(resizingMode: .tile)
                 .blendMode(.overlay)
-                .opacity(0.1)
+                .opacity(0.07)
         }
         .animation(.easeInOut(duration: 1.4), value: trackID)
         .animation(.easeInOut(duration: 1.4), value: colors)
