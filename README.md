@@ -10,6 +10,10 @@ Peace controls the Music app over Apple Events, so Music does the playing and yo
 - **Stage:** the current lyric fills the window in giant poster type, with the album art moving through the letters and words landing one by one.
 - **Halftone:** the album art becomes a field of printed dots that moves with the music.
 
+## Mini player
+
+A small panel that stays above every other window, on every Space and over full screen apps. Drag it anywhere and it remembers the spot. Click `OPEN` or the Dock icon to return to the full player.
+
 ## Themes
 
 Every mode can use **Liquid Glass** or **Mono**, which has square outlined buttons and monospace type.
@@ -39,6 +43,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 | [ / ] | Shift this song's lyrics 0.1s later / earlier |
 | \ | Reset this song's lyric timing |
 | F | Full screen |
+| P or Cmd-Shift-M | Mini player |
 
 ## Audio
 

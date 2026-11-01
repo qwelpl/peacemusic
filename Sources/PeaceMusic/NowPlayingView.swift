@@ -12,6 +12,7 @@ enum PlayerMode: String, CaseIterable {
 
 struct NowPlayingView: View {
     @Environment(PlayerStore.self) private var store
+    @Environment(MiniPlayerController.self) private var miniPlayer
 
     @AppStorage("uiTheme") private var themeRaw = UITheme.glass.rawValue
     @AppStorage("playerMode") private var modeRaw = PlayerMode.turntable.rawValue
@@ -28,6 +29,15 @@ struct NowPlayingView: View {
     private var chromeVisible: Bool { !isIdle || !store.isPlaying || showsLibrary }
 
     var body: some View {
+        // Dropping the player while hidden stops its animation and any audio tapping.
+        if miniPlayer.isOpen {
+            Color.black
+        } else {
+            fullPlayer
+        }
+    }
+
+    private var fullPlayer: some View {
         ZStack {
             if store.track == nil || mode == .turntable {
                 FluidBackground(
@@ -68,6 +78,7 @@ struct NowPlayingView: View {
         .onKeyPress(.rightArrow) { store.next(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "m")) { _ in switchMode(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "t")) { _ in switchTheme(); return .handled }
+        .onKeyPress(characters: .init(charactersIn: "p")) { _ in miniPlayer.open(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "[")) { _ in store.nudgeLyrics(by: -0.1); return .handled }
         .onKeyPress(characters: .init(charactersIn: "]")) { _ in store.nudgeLyrics(by: 0.1); return .handled }
         .onKeyPress(characters: .init(charactersIn: "\\")) { _ in store.resetLyricOffset(); return .handled }
@@ -233,6 +244,8 @@ struct NowPlayingView: View {
                     PlayerButton(symbol: "quote.bubble", title: "LYRICS", isOn: showsLyrics) { showsLyrics.toggle() }
                         .help("Lyrics (L)")
                 }
+                PlayerButton(symbol: "pip.enter", title: "MINI", action: miniPlayer.open)
+                    .help("Mini player (P)")
                 PlayerButton(symbol: "arrow.up.left.and.arrow.down.right", title: "FULL", action: toggleFullScreen)
                     .help("Full screen (F)")
             }
