@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum PlayerMode: String, CaseIterable {
-    case turntable, stage
+    case turntable, stage, halftone
 
     var next: PlayerMode {
         let all = Self.allCases
@@ -43,6 +43,8 @@ struct NowPlayingView: View {
                     player.transition(.opacity)
                 case .stage:
                     StageView(chromeVisible: chromeVisible).transition(.opacity)
+                case .halftone:
+                    HalftoneView(chromeVisible: chromeVisible).transition(.opacity)
                 }
             }
 
