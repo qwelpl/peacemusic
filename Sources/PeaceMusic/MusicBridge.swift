@@ -208,8 +208,10 @@ final class MusicBridge: @unchecked Sendable {
         send("play (first playlist whose persistent ID is \(quoted(playlistID)))")
     }
 
-    func play(trackID: String) {
-        send("play (first track of library playlist 1 whose persistent ID is \(quoted(trackID)))")
+    /// Playing from a playlist keeps that playlist as the queue.
+    func play(trackID: String, playlistID: String?) {
+        let container = playlistID.map { "(first playlist whose persistent ID is \(quoted($0)))" } ?? "library playlist 1"
+        send("play (first track of \(container) whose persistent ID is \(quoted(trackID)))")
     }
 
     private func descriptors(in list: NSAppleEventDescriptor) -> [NSAppleEventDescriptor] {
