@@ -217,9 +217,11 @@ private final class HalftoneRenderer {
                 // A fixed scatter of dots catches the highs, more of them as the highs get louder.
                 let glint = fract(sin(Double(row) * 12.9898 + Double(column) * 78.233) * 43758.5453)
                 let sparkle = glint > 1 - audio.high * 0.3 ? audio.high : 0
-                let radiusUnit = Double(luminance) * (0.84 + breathing + audio.bass * 0.34)
-                    + 0.05 + energy * 0.34 + sparkle * 0.14
-                let radius = min(radiusUnit, 1.12) * pitch * 0.5
+                // The dot's own size stops short of touching its neighbors, so bright covers
+                // keep their texture and the music's movement stays visible.
+                let bodySize = min(Double(luminance) * (0.68 + breathing + audio.bass * 0.3), 0.82)
+                let radiusUnit = bodySize + 0.05 + energy * 0.34 + sparkle * 0.14
+                let radius = min(radiusUnit, 1.08) * pitch * 0.5
                 let x = (Double(column) + 0.5) * pitch + shift + pushX * pitch * 0.7
                     + sin(v * 9 + flow) * waveHeight
                 let y = (Double(row) + 0.5) * pitch + pushY * pitch * 0.7

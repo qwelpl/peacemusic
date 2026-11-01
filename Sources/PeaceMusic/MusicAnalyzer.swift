@@ -155,6 +155,8 @@ final class MusicAnalyzer: @unchecked Sendable {
 
     private static let keptOnsets = 10
     private static let logger = Logger(subsystem: "com.qwelpl.peacemusic", category: "audio")
+    /// Set to a file path to record signal levels when checking that audio is arriving.
+    private static let diagnosticPath = ProcessInfo.processInfo.environment["PEACE_AUDIO_LOG"]
 
     private let shared = OSAllocatedUnfairLock(initialState: Shared())
     private let ioQueue = DispatchQueue(label: "peace.bass-analyzer", qos: .userInteractive)
@@ -281,12 +283,21 @@ final class MusicAnalyzer: @unchecked Sendable {
                 state.onsets.removeFirst(state.onsets.count - Self.keptOnsets)
             }
         }
-        if now.timeIntervalSince(lastDiagnostic) >= 2 {
+        if let path = Self.diagnosticPath, now.timeIntervalSince(lastDiagnostic) >= 1 {
             lastDiagnostic = now
-            let loudest = detector.loudest
-            let hits = detector.onsetCount
-            Self.logger.debug("peak=\(loudest, privacy: .public) bassHits=\(hits, privacy: .public)")
+            let line = String(
+                format: "peak=%.4f bass=%.2f mid=%.2f high=%.2f bassHits=%d midHits=%d\n",
+                detector.loudest, detector.bassLevel, detector.midLevel, detector.highLevel,
+                detector.onsetCount, detector.midOnsetCount
+            )
             detector.resetLoudest()
+            if let handle = FileHandle(forWritingAtPath: path) {
+                handle.seekToEndOfFile()
+                handle.write(Data(line.utf8))
+                try? handle.close()
+            } else {
+                FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
+            }
         }
     }
 
