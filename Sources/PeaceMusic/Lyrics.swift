@@ -21,7 +21,7 @@ enum LRCParser {
     private static let interludeGap = 7.0
 
     static func parse(_ lrc: String, duration: Double) -> [LyricLine] {
-        let pattern = /\[(\d+):(\d+(?:\.\d+)?)\]/
+        let pattern = #/\[(\d+):(\d+(?:\.\d+)?)\]/#
         var timed: [(Double, String)] = []
         for raw in lrc.split(separator: "\n") {
             let matches = raw.matches(of: pattern)
@@ -131,8 +131,8 @@ final class LyricsClient: @unchecked Sendable {
     /// "Song (feat. X) - Remastered 2011" becomes "Song".
     static func cleanTitle(_ title: String) -> String {
         var cleaned = title
-        cleaned.replace(/\s*[\(\[](feat|ft|with)\.?\s[^\)\]]*[\)\]]/.ignoresCase(), with: "")
-        cleaned.replace(/\s+-\s+.*(remaster|version|edit|mix|live).*$/.ignoresCase(), with: "")
+        cleaned.replace(#/\s*[\(\[](feat|ft|with)\.?\s[^\)\]]*[\)\]]/#.ignoresCase(), with: "")
+        cleaned.replace(#/\s+-\s+.*(remaster|version|edit|mix|live).*$/#.ignoresCase(), with: "")
         return cleaned.trimmingCharacters(in: .whitespaces)
     }
 }
