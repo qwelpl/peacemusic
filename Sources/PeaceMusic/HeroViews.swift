@@ -61,7 +61,7 @@ struct CoverHero: View {
 }
 
 /// Accumulates rotation only while playing, so the record stops where it was paused.
-private final class SpinClock {
+final class SpinClock {
     private var angle = 0.0
     private var last: Date?
 

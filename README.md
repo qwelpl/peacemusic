@@ -12,7 +12,7 @@ Peace controls the Music app over Apple Events, so Music does the playing and yo
 
 ## Mini player
 
-A small panel that stays above every other window, on every Space and over full screen apps. Drag it anywhere and it remembers the spot. Click `OPEN` or the Dock icon to return to the full player.
+A compact pill that stays above every other window, on every Space and over full screen apps: a spinning record ringed by the live spectrum, with album art dots moving to the music behind it. Hover over it to spring it open for controls. Drag it anywhere and it remembers the spot. Click `OPEN` or the Dock icon to return to the full player.
 
 ## Themes
 
@@ -47,7 +47,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 
 ## Audio
 
-Halftone taps the Music app's audio so the dots can follow the song: bass sends out rings and swells the dots, mids flow through the field and highs sparkle. macOS asks for System Audio Recording permission the first time. Audio is measured on your Mac and never recorded or sent anywhere. If you decline, sung words drive the ripples instead.
+Halftone and the mini player tap the Music app's audio so they can follow the song. In Halftone, bass sends out rings and swells the dots, mids flow through the field and highs sparkle. macOS asks for System Audio Recording permission the first time. Audio is measured on your Mac and never recorded or sent anywhere. If you decline, sung words drive the ripples instead.
 
 `open build/Peace.app --args --demo-instrumental` shows this with a generated drum loop.
 

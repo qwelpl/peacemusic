@@ -37,12 +37,42 @@ struct HalftoneView: View {
     }
 }
 
+// MARK: Listening
+
+extension View {
+    /// Keeps the analyzer connected to Music for as long as this view is on screen.
+    func listensToMusic() -> some View {
+        modifier(MusicListening())
+    }
+}
+
+private struct MusicListening: ViewModifier {
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.musicAnalyzer) private var analyzer
+
+    func body(content: Content) -> some View {
+        content
+            .task {
+                // Repeats so it picks up Music launching later or a new output device. It also
+                // recovers if the old view stops listening just after this one starts.
+                while !Task.isCancelled {
+                    if store.isDemo { analyzer.startDemo() } else { analyzer.start() }
+                    try? await Task.sleep(for: .seconds(3))
+                }
+            }
+            .onDisappear { analyzer.stop() }
+    }
+}
+
 // MARK: Dot field
 
-private struct HalftoneField: View {
+struct HalftoneField: View {
+    /// Smaller surfaces need finer dots to still read as the cover.
+    var minimumPitch: CGFloat = 12
+
     @Environment(PlayerStore.self) private var store
+    @Environment(\.musicAnalyzer) private var analyzer
     @State private var renderer = HalftoneRenderer()
-    @State private var analyzer = MusicAnalyzer()
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !store.isPlaying)) { context in
@@ -52,6 +82,7 @@ private struct HalftoneField: View {
                 renderer.draw(
                     in: &graphics,
                     size: size,
+                    minimumPitch: minimumPitch,
                     artwork: store.artwork,
                     time: date.timeIntervalSinceReferenceDate,
                     ripples: audio.hasSignal
@@ -62,18 +93,7 @@ private struct HalftoneField: View {
             }
         }
         .allowsHitTesting(false)
-        .task {
-            if store.isDemo {
-                analyzer.startDemo()
-                return
-            }
-            // Repeats so it picks up Music launching later or a new output device.
-            while !Task.isCancelled {
-                analyzer.start()
-                try? await Task.sleep(for: .seconds(3))
-            }
-        }
-        .onDisappear { analyzer.stop() }
+        .listensToMusic()
     }
 
     private func audioRipples(_ audio: MusicAnalyzer.Reading, at date: Date) -> [HalftoneRipple] {
@@ -153,6 +173,7 @@ private final class HalftoneRenderer {
     func draw(
         in graphics: inout GraphicsContext,
         size: CGSize,
+        minimumPitch: CGFloat,
         artwork: NSImage?,
         time: Double,
         ripples: [HalftoneRipple],
@@ -161,7 +182,7 @@ private final class HalftoneRenderer {
         graphics.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(white: 0.02)))
         guard size.width > 0, size.height > 0 else { return }
 
-        let pitch = max(12, (size.width * size.height / Self.maxDots).squareRoot())
+        let pitch = max(minimumPitch, (size.width * size.height / Self.maxDots).squareRoot())
         let columns = Int(size.width / pitch) + 1
         let rows = Int(size.height / pitch) + 1
         updateGrid(artwork: artwork, columns: columns, rows: rows, aspect: size.width / size.height, time: time)

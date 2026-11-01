@@ -23,6 +23,7 @@ enum UITheme: String {
 
 extension EnvironmentValues {
     @Entry var uiTheme: UITheme = .glass
+    @Entry var musicAnalyzer = MusicAnalyzer()
 }
 
 extension View {

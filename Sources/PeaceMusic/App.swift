@@ -5,10 +5,11 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let store: PlayerStore
     let miniPlayer: MiniPlayerController
+    let analyzer = MusicAnalyzer()
 
     override init() {
         store = PlayerStore()
-        miniPlayer = MiniPlayerController(store: store)
+        miniPlayer = MiniPlayerController(store: store, analyzer: analyzer)
         super.init()
     }
 
@@ -19,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 try? await Task.sleep(for: .seconds(0.5))
                 miniPlayer.open()
+                if CommandLine.arguments.contains("--mini-expanded") { miniPlayer.setExpanded(true) }
             }
         }
     }
@@ -44,6 +46,7 @@ struct PeaceApp: App {
             NowPlayingView()
                 .environment(delegate.store)
                 .environment(delegate.miniPlayer)
+                .environment(\.musicAnalyzer, delegate.analyzer)
                 .frame(minWidth: 900, minHeight: 620)
         }
         .windowStyle(.hiddenTitleBar)

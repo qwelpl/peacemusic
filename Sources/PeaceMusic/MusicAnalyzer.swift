@@ -1,3 +1,4 @@
+import Accelerate
 import AudioToolbox
 import CoreAudio
 import Foundation
@@ -38,6 +39,78 @@ private struct BandTracker {
     }
 }
 
+/// Measures how loud each part of the frequency range is, on a log scale like hearing.
+final class SpectrumAnalyzer {
+    static let bandCount = 24
+    private static let log2Size: vDSP_Length = 10
+    private static let size = 1 << 10
+
+    /// One value from 0 to 1 per band, lowest frequencies first.
+    private(set) var bands = [Float](repeating: 0, count: bandCount)
+
+    private let setup: FFTSetup
+    private let window: [Float]
+    private let binRanges: [Range<Int>]
+    private var history = [Float](repeating: 0, count: size)
+    private var ordered = [Float](repeating: 0, count: size)
+    private var real = [Float](repeating: 0, count: size / 2)
+    private var imaginary = [Float](repeating: 0, count: size / 2)
+    private var peaks = [Float](repeating: 0.001, count: bandCount)
+    private var writeIndex = 0
+    private var sinceLast = 0
+
+    init(sampleRate: Double) {
+        setup = vDSP_create_fftsetup(Self.log2Size, FFTRadix(kFFTRadix2))!
+        window = vDSP.window(ofType: Float.self, usingSequence: .hanningDenormalized, count: Self.size, isHalfWindow: false)
+        let binWidth = sampleRate / Double(Self.size)
+        let (low, high) = (45.0, min(14000.0, sampleRate / 2 - binWidth))
+        binRanges = (0..<Self.bandCount).map { band in
+            let start = low * pow(high / low, Double(band) / Double(Self.bandCount))
+            let end = low * pow(high / low, Double(band + 1) / Double(Self.bandCount))
+            let first = max(Int(start / binWidth), 1)
+            return first..<max(Int(end / binWidth), first + 1)
+        }
+    }
+
+    deinit { vDSP_destroy_fftsetup(setup) }
+
+    func add(_ sample: Float) {
+        history[writeIndex] = sample
+        writeIndex = (writeIndex + 1) % Self.size
+        sinceLast += 1
+        if sinceLast == Self.size / 2 {
+            sinceLast = 0
+            transform()
+        }
+    }
+
+    private func transform() {
+        for index in 0..<Self.size {
+            ordered[index] = history[(writeIndex + index) % Self.size] * window[index]
+        }
+        real.withUnsafeMutableBufferPointer { realPointer in
+            imaginary.withUnsafeMutableBufferPointer { imaginaryPointer in
+                var split = DSPSplitComplex(realp: realPointer.baseAddress!, imagp: imaginaryPointer.baseAddress!)
+                ordered.withUnsafeBytes { bytes in
+                    vDSP_ctoz(bytes.bindMemory(to: DSPComplex.self).baseAddress!, 2, &split, 1, vDSP_Length(Self.size / 2))
+                }
+                vDSP_fft_zrip(setup, &split, 1, Self.log2Size, FFTDirection(kFFTDirection_Forward))
+            }
+        }
+        for (band, bins) in binRanges.enumerated() {
+            var sum: Float = 0
+            for bin in bins where bin < Self.size / 2 {
+                sum += real[bin] * real[bin] + imaginary[bin] * imaginary[bin]
+            }
+            let magnitude = (sum / Float(bins.count)).squareRoot()
+            // Each band is judged against its own recent peak, since highs are far quieter than lows.
+            peaks[band] = max(peaks[band] * 0.9985, magnitude)
+            let target = magnitude < 0.002 ? 0 : pow(magnitude / peaks[band], 1.5)
+            bands[band] += (target > bands[band] ? 0.65 : 0.16) * (target - bands[band])
+        }
+    }
+}
+
 /// Splits samples into bass, mids and highs and finds hits in them.
 final class MusicDetector {
     private static let hopSeconds = 0.0116
@@ -72,7 +145,10 @@ final class MusicDetector {
     /// Hops left before running averages mean anything and hits can count.
     private var warmupHops = 30
 
+    let spectrum: SpectrumAnalyzer
+
     init(sampleRate: Double) {
+        spectrum = SpectrumAnalyzer(sampleRate: sampleRate)
         hopLength = max(Int(sampleRate * Self.hopSeconds), 1)
         hopDuration = Double(hopLength) / sampleRate
         lowCoefficient = Float(1 - exp(-2 * Double.pi * 150 / sampleRate))
@@ -83,6 +159,7 @@ final class MusicDetector {
     func consume(_ samples: UnsafePointer<Float>, frames: Int, stride: Int) {
         for frame in 0..<frames {
             let sample = samples[frame * stride]
+            spectrum.add(sample)
             // One-pole filters are cheap enough for the audio thread.
             lowA += (sample - lowA) * lowCoefficient
             lowB += (lowA - lowB) * lowCoefficient
@@ -141,6 +218,7 @@ final class MusicAnalyzer: @unchecked Sendable {
         var mid = 0.0
         var high = 0.0
         var onsets: [Onset] = []
+        var spectrum = [Float](repeating: 0, count: SpectrumAnalyzer.bandCount)
         /// False when nothing is reaching the app, as when permission was declined.
         var hasSignal = false
     }
@@ -150,6 +228,7 @@ final class MusicAnalyzer: @unchecked Sendable {
         var mid: Float = 0
         var high: Float = 0
         var onsets: [Onset] = []
+        var spectrum = [Float](repeating: 0, count: SpectrumAnalyzer.bandCount)
         var lastSignal = Date.distantPast
     }
 
@@ -175,6 +254,7 @@ final class MusicAnalyzer: @unchecked Sendable {
                 mid: Double(state.mid),
                 high: Double(state.high),
                 onsets: state.onsets,
+                spectrum: state.spectrum,
                 hasSignal: Date().timeIntervalSince(state.lastSignal) < 1.5
             )
         }
@@ -276,6 +356,8 @@ final class MusicAnalyzer: @unchecked Sendable {
             state.bass = detector.bassLevel
             state.mid = detector.midLevel
             state.high = detector.highLevel
+            // Copied in place so the audio thread doesn't allocate.
+            for band in state.spectrum.indices { state.spectrum[band] = detector.spectrum.bands[band] }
             if !detector.isSilent { state.lastSignal = now }
             if bassHit { state.onsets.append(Onset(date: now, isBass: true)) }
             if midHit { state.onsets.append(Onset(date: now, isBass: false)) }
