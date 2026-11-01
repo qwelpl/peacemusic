@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
+        // Menu bar apps don't come to the front on launch, which leaves keys with no window.
+        if !CommandLine.arguments.contains("--mini") { NSApp.activate(ignoringOtherApps: true) }
         if CommandLine.arguments.contains("--mini") {
             Task {
                 try? await Task.sleep(for: .seconds(0.5))
@@ -45,6 +47,7 @@ struct PeaceApp: App {
                 .environment(delegate.miniPlayer)
                 .environment(\.musicAnalyzer, delegate.analyzer)
                 .frame(minWidth: 900, minHeight: 620)
+                .windowFullScreenBehavior(.enabled)
                 .connectMainWindow(to: delegate.miniPlayer)
         }
         .windowStyle(.hiddenTitleBar)

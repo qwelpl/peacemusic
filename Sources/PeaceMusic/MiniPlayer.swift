@@ -71,7 +71,7 @@ final class MiniPlayerController {
     }
 
     private func revealMainWindow() {
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
         if let mainWindow {
             mainWindow.makeKeyAndOrderFront(nil)
         } else {

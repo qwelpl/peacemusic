@@ -126,7 +126,9 @@ struct NowPlayingView: View {
     }
 
     private func toggleFullScreen() {
-        NSApp.keyWindow?.toggleFullScreen(nil)
+        let window = NSApp.keyWindow ?? NSApp.windows.first { !($0 is NSPanel) && $0.canBecomeMain && $0.isVisible }
+        NSApp.activate(ignoringOtherApps: true)
+        window?.toggleFullScreen(nil)
     }
 
     // MARK: Layout
