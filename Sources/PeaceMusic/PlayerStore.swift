@@ -17,6 +17,9 @@ final class PlayerStore {
     private(set) var meshColors: [Color] = Palette.fallback
     private(set) var lyrics: Lyrics = .none
     private(set) var lyricIndex: Int?
+    private(set) var lyricsSource: LyricsSource?
+    private(set) var lyricOffset: Double = 0
+    private(set) var syncMessage: String?
 
     private(set) var playlists: [Playlist] = []
 
@@ -31,6 +34,9 @@ final class PlayerStore {
     /// Polls that started before a command can return stale values, so local state wins briefly.
     private var commandGuardUntil = Date.distantPast
     private var started = false
+    private var syncMessageTask: Task<Void, Never>?
+    /// Slightly early reads as in time, where slightly late reads as broken.
+    private static let lyricLead = 0.1
 
     func start() {
         guard !started else { return }
@@ -65,6 +71,11 @@ final class PlayerStore {
         return position
     }
 
+    /// The playback position that lyrics should be drawn against.
+    func lyricPosition(at date: Date = Date()) -> Double {
+        position(at: date) + Self.lyricLead + lyricOffset
+    }
+
     // MARK: Polling
 
     private func poll() async {
@@ -84,18 +95,19 @@ final class PlayerStore {
             shuffle = snapshot.shuffle
             repeatMode = snapshot.repeatMode
             favorited = snapshot.favorited
-            let drift = abs(position() - snapshot.position)
-            if trackChanged || snapshot.state != state || drift > 0.75 {
-                setAnchor(snapshot.position)
+            let drift = abs(position(at: snapshot.capturedAt) - snapshot.position)
+            if trackChanged || snapshot.state != state || drift > 0.25 {
+                setAnchor(snapshot.position, at: snapshot.capturedAt)
             }
             state = snapshot.state
         }
 
         if trackChanged {
             track = snapshot.track
-            setAnchor(snapshot.position)
+            setAnchor(snapshot.position, at: snapshot.capturedAt)
             state = snapshot.state
             lyricIndex = nil
+            lyricOffset = snapshot.track.map { savedOffset(for: $0) } ?? 0
             if let current = snapshot.track {
                 loadArtwork(for: current)
                 loadLyrics(for: current)
@@ -103,13 +115,14 @@ final class PlayerStore {
                 artwork = nil
                 meshColors = Palette.fallback
                 lyrics = .none
+                lyricsSource = nil
             }
         }
     }
 
-    private func setAnchor(_ position: Double) {
+    private func setAnchor(_ position: Double, at date: Date = Date()) {
         anchorPosition = position
-        anchorDate = Date()
+        anchorDate = date
     }
 
     private func updateLyricIndex() {
@@ -117,8 +130,7 @@ final class PlayerStore {
             if lyricIndex != nil { lyricIndex = nil }
             return
         }
-        // Small lead so the highlight lands with the vocal rather than after it.
-        let now = position() + 0.15
+        let now = lyricPosition()
         let index = lines.lastIndex { $0.time <= now }
         if index != lyricIndex { lyricIndex = index }
     }
@@ -142,10 +154,44 @@ final class PlayerStore {
 
     private func loadLyrics(for current: Track) {
         lyrics = .loading
+        lyricsSource = nil
         Task {
-            let result = await lyricsClient.lyrics(for: current)
+            let (result, source) = await lyricsClient.lyrics(for: current)
             guard track?.id == current.id else { return }
             lyrics = result
+            lyricsSource = source
+        }
+    }
+
+    // MARK: Lyric sync
+
+    private func offsetKey(for track: Track) -> String { "lyricOffset.\(track.id)" }
+
+    private func savedOffset(for track: Track) -> Double {
+        UserDefaults.standard.double(forKey: offsetKey(for: track))
+    }
+
+    /// Positive values show lyrics earlier. Remembered per song.
+    func nudgeLyrics(by amount: Double) {
+        setLyricOffset(((lyricOffset + amount) * 10).rounded() / 10)
+    }
+
+    func resetLyricOffset() {
+        setLyricOffset(0)
+    }
+
+    private func setLyricOffset(_ offset: Double) {
+        guard let track else { return }
+        lyricOffset = offset
+        UserDefaults.standard.set(offset, forKey: offsetKey(for: track))
+
+        let amount = String(format: "%.1fs", abs(offset))
+        let timing = offset == 0 ? "Lyrics on original timing" : "Lyrics \(amount) \(offset > 0 ? "earlier" : "later")"
+        syncMessage = [timing, lyricsSource?.rawValue].compactMap { $0 }.joined(separator: " · ")
+        syncMessageTask?.cancel()
+        syncMessageTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled { syncMessage = nil }
         }
     }
 
@@ -237,21 +283,28 @@ final class PlayerStore {
         state = .playing
         volume = 0.7
         favorited = true
-        setAnchor(21)
+        setAnchor(18)
         let image = Palette.demoArtwork()
         artwork = image
         meshColors = Palette.meshColors(from: image)
-        lyrics = .synced(LRCParser.parse("""
-        [00:02.00]Porch light humming in the rain
-        [00:09.00]I keep your number in a frame
-        [00:15.00]Every signal fades to grey
-        [00:20.00]But I can hear you anyway
-        [00:26.00]Soft static on the radio
-        [00:32.00]Saying things I used to know
-        [00:38.00]Turn it up and let it glow
-        [00:44.00]
-        [00:54.00]Morning finds the window wide
-        [01:00.00]Nothing left to hold inside
-        """, duration: current.duration))
+        lyricsSource = .netEaseWords
+        let demoLines = [
+            (2.0, "Porch light humming in the rain"),
+            (9.0, "I keep your number in a frame"),
+            (15.0, "Every signal fades to grey"),
+            (20.0, "But I can hear you anyway"),
+            (26.0, "Soft static on the radio"),
+            (32.0, "Saying things I used to know"),
+            (38.0, "Turn it up and let it glow"),
+            (54.0, "Morning finds the window wide"),
+            (60.0, "Nothing left to hold inside"),
+        ]
+        let yrc = demoLines.enumerated().map { index, line in
+            let start = Int(line.0 * 1000)
+            let words = line.1.split(separator: " ")
+            let tokens = words.enumerated().map { "(\(start + $0.offset * 420),400,0)\($0.element) " }.joined()
+            return "[\(start),\(words.count * 420)]\(tokens)"
+        }.joined(separator: "\n")
+        lyrics = .synced(YRCParser.parse(yrc))
     }
 }

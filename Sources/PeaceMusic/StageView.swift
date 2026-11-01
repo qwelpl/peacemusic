@@ -19,12 +19,14 @@ struct StageView: View {
                     let content = content
                     StagePoster(content: content, size: geometry.size)
                         .id(content.key)
+                        // The old line clears first, so giant letters never pile up on each other.
                         .transition(.asymmetric(
-                            insertion: .scale(scale: 1.07).combined(with: .opacity),
-                            removal: .offset(y: -50).combined(with: .opacity)
+                            insertion: .scale(scale: 1.05).combined(with: .opacity)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.86).delay(0.07)),
+                            removal: .opacity.animation(.easeOut(duration: 0.07))
                         ))
                 }
-                .animation(.spring(response: 0.42, dampingFraction: 0.86), value: content.key)
+                .animation(.default, value: content.key)
                 .padding(.horizontal, 28)
                 .padding(.top, 56)
 
@@ -35,21 +37,16 @@ struct StageView: View {
 
     private var content: StageContent {
         let title = store.track?.title ?? ""
-        let fallback = StageContent(key: "\(store.track?.id ?? "")-title", text: title, start: nil, duration: 0)
+        let fallback = StageContent(key: "\(store.track?.id ?? "")-title", text: title, wordTimes: nil)
         guard case .synced(let lines) = store.lyrics,
               let index = store.lyricIndex,
               !lines[index].isInterlude else { return fallback }
 
         let line = lines[index]
-        let next = index + 1 < lines.count ? lines[index + 1].time : line.time + 5
-        let wordCount = line.text.split(separator: " ").count
-        // Words finish arriving well before a long gap, so the line can sit complete.
-        let duration = min(next - line.time, max(1.2, Double(wordCount) * 0.55))
         return StageContent(
             key: "\(store.track?.id ?? "")-\(line.id)",
             text: line.text,
-            start: line.time,
-            duration: duration
+            wordTimes: line.words?.map(\.time)
         )
     }
 }
@@ -57,9 +54,8 @@ struct StageView: View {
 private struct StageContent {
     let key: String
     let text: String
-    /// Nil shows every word at once.
-    let start: Double?
-    let duration: Double
+    /// Nil shows every word at once, because the source only times whole lines.
+    let wordTimes: [Double]?
 }
 
 private struct StagePoster: View {
@@ -79,7 +75,7 @@ private struct StagePoster: View {
         TimelineView(.animation(paused: !store.isPlaying)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
             artFill(time: time)
-                .mask { rows(position: store.position(at: context.date)) }
+                .mask { rows(position: store.lyricPosition(at: context.date)) }
         }
         .frame(width: size.width, height: size.height)
     }
@@ -135,17 +131,14 @@ private struct StagePoster: View {
     }
 
     private func revealAmount(of word: StageWord, position: Double) -> Double {
-        guard let start = content.start else { return 1 }
-        let wordStart = start + word.startFraction * content.duration
-        return min(max((position - wordStart) / 0.2, 0), 1)
+        guard let times = content.wordTimes, word.id < times.count else { return 1 }
+        return min(max((position - times[word.id]) / 0.2, 0), 1)
     }
 }
 
 private struct StageWord: Identifiable {
     let id: Int
     let text: String
-    /// Where this word begins within the line, weighted by length.
-    let startFraction: Double
 }
 
 private struct StageRow: Identifiable {
@@ -189,18 +182,8 @@ private struct StageLayout {
             }
         }
 
-        let totalWeight = words.reduce(0) { $0 + $1.count + 1 }
-        var weightSoFar = 0
         rows = best.groups.enumerated().map { rowIndex, group in
-            let rowWords = group.map { index in
-                let word = StageWord(
-                    id: index,
-                    text: words[index],
-                    startFraction: Double(weightSoFar) / Double(totalWeight)
-                )
-                weightSoFar += words[index].count + 1
-                return word
-            }
+            let rowWords = group.map { StageWord(id: $0, text: words[$0]) }
             let fontSize = Self.fontSize(for: group, widths: widths, width: size.width) * best.scale
             return StageRow(id: rowIndex, words: rowWords, fontSize: fontSize)
         }

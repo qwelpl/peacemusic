@@ -30,8 +30,10 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 | M | Switch mode (Turntable / Stage) |
 | L | Show or hide lyrics (Turntable) |
 | V | Switch between vinyl and cover (Turntable) |
+| [ / ] | Shift this song's lyrics 0.1s later / earlier |
+| \ | Reset this song's lyric timing |
 | F | Full screen |
 
 ## Network use
 
-Track title, artist, album and duration go to [LRCLIB](https://lrclib.net) to find lyrics, which are then cached on disk. Artist and title go to the iTunes Search API only when Music has no artwork for a track.
+Track title and artist go to [LRCLIB](https://lrclib.net) and NetEase Cloud Music to find lyrics, and the best match is cached on disk. NetEase's API is unofficial, so it may stop working; Peace then falls back to LRCLIB. Artist and title go to the iTunes Search API only when Music has no artwork for a track.

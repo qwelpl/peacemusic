@@ -49,6 +49,7 @@ struct NowPlayingView: View {
             libraryOverlay
         }
         .overlay(alignment: .topTrailing) { topBar }
+        .overlay(alignment: .top) { syncToast }
         .preferredColorScheme(.dark)
         .focusable()
         .focusEffectDisabled()
@@ -61,6 +62,9 @@ struct NowPlayingView: View {
         .onKeyPress(.leftArrow) { store.previous(); return .handled }
         .onKeyPress(.rightArrow) { store.next(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "m")) { _ in switchMode(); return .handled }
+        .onKeyPress(characters: .init(charactersIn: "[")) { _ in store.nudgeLyrics(by: -0.1); return .handled }
+        .onKeyPress(characters: .init(charactersIn: "]")) { _ in store.nudgeLyrics(by: 0.1); return .handled }
+        .onKeyPress(characters: .init(charactersIn: "\\")) { _ in store.resetLyricOffset(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "l")) { _ in
             guard mode == .turntable else { return .ignored }
             showsLyrics.toggle()
@@ -219,6 +223,20 @@ struct NowPlayingView: View {
         .padding(16)
         .opacity(chromeVisible ? 1 : 0)
         .allowsHitTesting(chromeVisible)
+    }
+
+    @ViewBuilder
+    private var syncToast: some View {
+        if let message = store.syncMessage {
+            Text(message)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.top, 20)
+                .transition(.opacity)
+        }
     }
 
     @ViewBuilder

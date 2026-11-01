@@ -59,16 +59,23 @@ final class MusicBridge: @unchecked Sendable {
                 try
                     set d to duration of t
                 end try
+                set tid to persistent ID of t
+                set n to name of t
+                set a to artist of t
+                set al to album of t
                 set p to 0
                 try
                     set p to player position
                 end try
-                return {s, v, sh, r, persistent ID of t, name of t, artist of t, album of t, d, p, fav}
+                return {s, v, sh, r, tid, n, a, al, d, p, fav}
             end tell
             """
             do {
                 let list = try run(source)
-                completion(parseSnapshot(list), .ok)
+                var snapshot = parseSnapshot(list)
+                // Position is the script's last read, so the moment it returned is close to it.
+                snapshot.capturedAt = Date()
+                completion(snapshot, .ok)
             } catch ScriptError.failed(let code) where code == Self.notAuthorizedCode {
                 completion(PlayerSnapshot(), .notAuthorized)
             } catch {

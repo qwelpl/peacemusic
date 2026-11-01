@@ -61,11 +61,7 @@ private struct SyncedLyrics: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 30) {
                         ForEach(lines) { line in
-                            LyricRow(
-                                line: line,
-                                end: endTime(of: line),
-                                distance: distance(of: line)
-                            )
+                            LyricRow(line: line, distance: distance(of: line))
                             .id(line.id)
                         }
                     }
@@ -84,14 +80,10 @@ private struct SyncedLyrics: View {
         abs(line.id - (store.lyricIndex ?? -1))
     }
 
-    private func endTime(of line: LyricLine) -> Double {
-        line.id + 1 < lines.count ? lines[line.id + 1].time : line.time + 5
-    }
 }
 
 private struct LyricRow: View {
     let line: LyricLine
-    let end: Double
     let distance: Int
 
     @Environment(PlayerStore.self) private var store
@@ -119,42 +111,27 @@ private struct LyricRow: View {
     private var content: some View {
         if line.isInterlude {
             InterludeDots(isActive: isActive)
-        } else if isActive {
+        } else if isActive, let words = line.words {
             TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !store.isPlaying)) { context in
-                sweepingText(progress: progress(at: context.date))
+                wordTimedText(words, position: store.lyricPosition(at: context.date))
             }
         } else {
-            lyricText.foregroundStyle(.white)
+            Text(line.text).font(Self.font).foregroundStyle(.white)
         }
     }
 
-    private var lyricText: Text {
-        Text(line.text).font(.system(size: 40, weight: .heavy, design: .rounded))
-    }
+    private static let font = Font.system(size: 40, weight: .heavy, design: .rounded)
 
-    private func progress(at date: Date) -> Double {
-        guard end > line.time else { return 1 }
-        return min(max((store.position(at: date) - line.time) / (end - line.time), 0), 1)
-    }
-
-    private func sweepingText(progress: Double) -> some View {
-        // The wide soft edge stays off-screen at both ends of the sweep.
-        let edge = progress * 1.4 - 0.2
-        return lyricText
-            .foregroundStyle(.white.opacity(0.42))
-            .overlay(alignment: .leading) {
-                lyricText
-                    .foregroundStyle(.white)
-                    .mask {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black, location: max(edge - 0.1, 0)),
-                                .init(color: .clear, location: min(max(edge + 0.1, 0.001), 1)),
-                            ],
-                            startPoint: .leading, endPoint: .trailing
-                        )
-                    }
-            }
+    /// Each word lights up over the time it is really sung, and wraps like normal text.
+    private func wordTimedText(_ words: [LyricWord], position: Double) -> Text {
+        var string = AttributedString()
+        for (index, word) in words.enumerated() {
+            let lit = min(max((position - word.time) / max(word.duration, 0.12), 0), 1)
+            var piece = AttributedString(index == 0 ? word.text : " " + word.text)
+            piece.foregroundColor = .white.opacity(0.4 + 0.6 * lit)
+            string += piece
+        }
+        return Text(string).font(Self.font)
     }
 }
 
