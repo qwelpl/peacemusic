@@ -2,13 +2,21 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// Swaps between the main window and a small panel pinned above everything else. The panel
-/// rests as a compact pill and springs open while the pointer is over it.
+/// Swaps between the main window and a small panel pinned above everything else. A pill inside
+/// the panel rests compact and springs open while the pointer is over it. The panel itself never
+/// changes size: resizing a window from an animation while SwiftUI lays it out makes AppKit abort
+/// with too many constraint passes. Its transparent margins let clicks through to what's below.
 @MainActor
 @Observable
 final class MiniPlayerController {
     static let compactSize = NSSize(width: 300, height: 72)
     static let expandedSize = NSSize(width: 430, height: 156)
+    /// Room around the expanded pill for its shadow.
+    static let margin: CGFloat = 24
+    static let panelSize = NSSize(
+        width: expandedSize.width + margin * 2,
+        height: expandedSize.height + margin * 2
+    )
 
     private(set) var isOpen = false
     private(set) var isExpanded = false
@@ -49,14 +57,8 @@ final class MiniPlayerController {
 
     func setExpanded(_ expanded: Bool) {
         collapseTask?.cancel()
-        guard isOpen, expanded != isExpanded, let panel else { return }
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.74)) { isExpanded = expanded }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
-            // Slightly overshoots, which makes the panel feel springy like the content inside it.
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 1.25, 0.35, 1)
-            panel.animator().setFrame(frame(for: expanded, from: panel.frame), display: true)
-        }
+        guard isOpen, expanded != isExpanded else { return }
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) { isExpanded = expanded }
     }
 
     fileprivate func pointerEntered() {
@@ -70,17 +72,6 @@ final class MiniPlayerController {
             try? await Task.sleep(for: .seconds(0.45))
             if !Task.isCancelled { self?.setExpanded(false) }
         }
-    }
-
-    /// Stays pinned by its top edge, and grows toward whichever side has room.
-    private func frame(for expanded: Bool, from current: NSRect) -> NSRect {
-        let size = expanded ? Self.expandedSize : Self.compactSize
-        var origin = NSPoint(x: current.midX - size.width / 2, y: current.maxY - size.height)
-        if let area = (panel?.screen ?? NSScreen.main)?.visibleFrame {
-            origin.x = min(max(origin.x, area.minX + 8), area.maxX - size.width - 8)
-            origin.y = max(origin.y, area.minY + 8)
-        }
-        return NSRect(origin: origin, size: size)
     }
 
     private func hideMainWindow() {
@@ -100,7 +91,7 @@ final class MiniPlayerController {
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: Self.compactSize),
+            contentRect: NSRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -114,7 +105,8 @@ final class MiniPlayerController {
         panel.hidesOnDeactivate = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // Drawn by the pill, since a window shadow would have to be recomputed as it animates.
+        panel.hasShadow = false
         panel.isMovableByWindowBackground = true
         panel.isReleasedWhenClosed = false
 
@@ -123,11 +115,17 @@ final class MiniPlayerController {
             .environment(self)
             .environment(\.musicAnalyzer, analyzer)
         let host = MiniPlayerHostingView(rootView: view)
+        // This controller animates the panel's size. Letting SwiftUI size the window as well makes
+        // each resize demand another layout pass mid-layout, which AppKit aborts on.
+        host.sizingOptions = []
+        host.pillSize = { [weak self] in
+            self?.isExpanded == true ? Self.expandedSize : Self.compactSize
+        }
         host.onHoverChange = { [weak self] isInside in
             if isInside { self?.pointerEntered() } else { self?.pointerExited() }
         }
         panel.contentView = host
-        panel.setContentSize(Self.compactSize)
+        panel.setContentSize(Self.panelSize)
         place(panel)
         return panel
     }
@@ -140,16 +138,16 @@ final class MiniPlayerController {
         if !didRestore || !isVisible, let screen = NSScreen.main ?? NSScreen.screens.first {
             let area = screen.visibleFrame
             panel.setFrameOrigin(NSPoint(
-                x: area.maxX - Self.compactSize.width - 16,
-                y: area.maxY - Self.compactSize.height - 16
+                x: area.maxX - Self.panelSize.width,
+                y: area.maxY - Self.panelSize.height
             ))
         }
-        // The saved frame may have been taken while expanded.
+        // Keeps the top center in place, whatever size the saved frame had.
         panel.setFrame(NSRect(
-            x: panel.frame.minX,
-            y: panel.frame.maxY - Self.compactSize.height,
-            width: Self.compactSize.width,
-            height: Self.compactSize.height
+            x: panel.frame.midX - Self.panelSize.width / 2,
+            y: panel.frame.maxY - Self.panelSize.height,
+            width: Self.panelSize.width,
+            height: Self.panelSize.height
         ), display: false)
         panel.setFrameAutosaveName(autosaveName)
     }
@@ -157,7 +155,9 @@ final class MiniPlayerController {
 
 private final class MiniPlayerHostingView<Content: View>: NSHostingView<Content> {
     var onHoverChange: ((Bool) -> Void)?
+    var pillSize: () -> NSSize = { .zero }
     private var hoverArea: NSTrackingArea?
+    private var isInsidePill = false
 
     /// Lets one click press a button, instead of the first click only focusing the panel.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -168,7 +168,7 @@ private final class MiniPlayerHostingView<Content: View>: NSHostingView<Content>
         if let hoverArea { removeTrackingArea(hoverArea) }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -177,12 +177,33 @@ private final class MiniPlayerHostingView<Content: View>: NSHostingView<Content>
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        onHoverChange?(true)
+        updateHover(event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        updateHover(event)
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        onHoverChange?(false)
+        setInside(false)
+    }
+
+    /// Only the pill counts, not the panel's transparent margins.
+    private func updateHover(_ event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let size = pillSize()
+        let margin = MiniPlayerController.margin
+        let top = isFlipped ? margin : bounds.maxY - margin - size.height
+        let pill = NSRect(x: bounds.midX - size.width / 2, y: top, width: size.width, height: size.height)
+        setInside(pill.contains(point))
+    }
+
+    private func setInside(_ isInside: Bool) {
+        guard isInside != isInsidePill else { return }
+        isInsidePill = isInside
+        onHoverChange?(isInside)
     }
 }
 
@@ -225,8 +246,16 @@ private struct MiniPlayerView: View {
                 CompactMini().transition(.opacity)
             }
         }
+        .frame(width: pillSize.width, height: pillSize.height)
         .clipShape(shape)
         .overlay(shape.strokeBorder(.white.opacity(theme == .glass ? 0.18 : 0.75), lineWidth: 1))
+        .shadow(color: .black.opacity(0.4), radius: 12, y: 5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, MiniPlayerController.margin)
+    }
+
+    private var pillSize: NSSize {
+        miniPlayer.isExpanded ? MiniPlayerController.expandedSize : MiniPlayerController.compactSize
     }
 }
 
