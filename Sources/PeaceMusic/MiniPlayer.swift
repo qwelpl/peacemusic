@@ -164,6 +164,17 @@ final class MiniPlayerController {
         return panel
     }
 
+    // Keeps the same corner on the new display.
+    func move(to screen: NSScreen) {
+        guard let panel, panel.screen != screen else { return }
+        let area = screen.visibleFrame
+        panel.setFrameOrigin(NSPoint(
+            x: corner.isLeading ? area.minX - Self.margin : area.maxX + Self.margin - panel.frame.width,
+            y: corner.isTop ? area.maxY + Self.margin - panel.frame.height : area.minY - Self.margin
+        ))
+        settle(panel, animated: false)
+    }
+
     private func place(_ panel: NSPanel) {
         let autosaveName = "PeaceMiniPlayer"
         let didRestore = panel.setFrameUsingName(autosaveName)

@@ -6,18 +6,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store: PlayerStore
     let miniPlayer: MiniPlayerController
     let analyzer = MusicAnalyzer()
+    let displays: DisplayPicker
     private let screenAwake: ScreenAwake
 
     override init() {
         store = PlayerStore()
         miniPlayer = MiniPlayerController(store: store, analyzer: analyzer)
         screenAwake = ScreenAwake(store: store)
+        displays = DisplayPicker(miniPlayer: miniPlayer)
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
         screenAwake.start()
+        // Gives the main window time to appear before moving it.
+        Task {
+            try? await Task.sleep(for: .seconds(0.6))
+            displays.start()
+        }
         // Menu bar apps don't come to the front on launch, which leaves keys with no window.
         if !CommandLine.arguments.contains("--mini") { NSApp.activate(ignoringOtherApps: true) }
         if CommandLine.arguments.contains("--mini") {
@@ -68,6 +75,7 @@ struct PeaceApp: App {
             MenuBarMenu()
                 .environment(delegate.store)
                 .environment(delegate.miniPlayer)
+                .environment(delegate.displays)
                 .connectMainWindow(to: delegate.miniPlayer)
         }
     }
@@ -76,6 +84,7 @@ struct PeaceApp: App {
 private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
+    @Environment(DisplayPicker.self) private var displays
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
     @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
     @AppStorage(LyricColorSlot.autoSyncKey) private var colorAutoSync = false
@@ -116,6 +125,16 @@ private struct MenuBarMenu: View {
                 .disabled(lyricScale == 1)
         }
         Divider()
+        if displays.names.count > 1 {
+            Section("Display") {
+                Picker("Display", selection: Binding(get: { displays.selected }, set: displays.select)) {
+                    ForEach(displays.names, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+            Divider()
+        }
         Section("Color") {
             Toggle("Auto Sync", isOn: $colorAutoSync)
             ForEach(LyricColorSlot.allCases) { slot in
