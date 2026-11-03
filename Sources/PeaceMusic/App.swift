@@ -85,7 +85,7 @@ private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @Environment(DisplayPicker.self) private var displays
-    @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.ship.rawValue
+    @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.classic.rawValue
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
     @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
     @AppStorage(LyricColorSlot.autoSyncKey) private var colorAutoSync = false

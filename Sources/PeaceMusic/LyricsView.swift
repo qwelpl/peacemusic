@@ -3,7 +3,7 @@ import SwiftUI
 struct LyricsPanel: View {
     @Environment(\.uiTheme) private var theme
     @Environment(PlayerStore.self) private var store
-    @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.ship.rawValue
+    @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.classic.rawValue
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
     @AppStorage(LyricSettings.scaleKey) private var scale = 1.0
     // Read so the panel redraws when a color changes.
@@ -37,7 +37,7 @@ struct LyricsPanel: View {
                 LyricsMessage(text: "No lyrics for this one")
             }
         }
-        .environment(\.lyricStyle, LyricStyle(rawValue: styleRaw) ?? .ship)
+        .environment(\.lyricStyle, LyricStyle(rawValue: styleRaw) ?? .classic)
         .environment(\.lyricFont, lyricFont)
         .environment(\.lyricScale, scale)
         .environment(\.lyricColors, colors)
@@ -78,7 +78,7 @@ private struct SyncedLyrics: View {
     @Environment(\.lyricStyle) private var style
     @Environment(\.lyricColors) private var colors
 
-    private var spacing: CGFloat { (style.layout == .code ? 4 : 30) * scale }
+    private var spacing: CGFloat { (style.layout == .terminal ? 4 : 30) * scale }
 
     var body: some View {
         GeometryReader { geometry in
@@ -92,13 +92,13 @@ private struct SyncedLyrics: View {
                                 isFirst: line.id == lines.first?.id,
                                 isLast: line.id == lines.last?.id,
                                 spacing: spacing,
-                                indent: style.layout == .constellation ? starIndent(for: line, width: geometry.size.width) : 0
+                                indent: style.layout == .stars ? starIndent(for: line, width: geometry.size.width) : 0
                             )
                             .id(line.id)
                         }
                     }
                     .backgroundPreferenceValue(StarAnchors.self) { stars in
-                        if style.layout == .constellation { constellationLines(stars) }
+                        if style.layout == .stars { starLines(stars) }
                     }
                     .padding(.vertical, geometry.size.height * 0.42)
                 }
@@ -117,7 +117,7 @@ private struct SyncedLyrics: View {
         return CGFloat(seed % 1000) / 1000 * width * 0.3
     }
 
-    private func constellationLines(_ stars: [Int: Anchor<CGPoint>]) -> some View {
+    private func starLines(_ stars: [Int: Anchor<CGPoint>]) -> some View {
         GeometryReader { proxy in
             let points = stars.sorted { $0.key < $1.key }.map { proxy[$0.value] }
             Path { path in
@@ -176,8 +176,8 @@ private struct LyricRow: View {
         .opacity(isActive ? 1 : isHovered ? 0.8 : restingOpacity)
         .scaleEffect(rowScale, anchor: anchor)
         .modifier(AudioPulse(
-            isOn: style.isVisual && isActive,
-            strength: style.layout == .code ? 0.015 : 0.06,
+            isOn: style.isPulsing && isActive,
+            strength: style.layout == .terminal ? 0.015 : 0.06,
             color: colors.highlight,
             anchor: anchor
         ))
@@ -185,38 +185,38 @@ private struct LyricRow: View {
     }
 
     private var blur: Double {
-        guard style.layout == .ship, !isHovered, theme == .glass else { return 0 }
+        guard style.layout == .classic, !isHovered, theme == .glass else { return 0 }
         return min(Double(distance) * 0.9, 4.5)
     }
 
     private var restingOpacity: Double {
         let distance = Double(distance)
         switch style.layout {
-        case .ship: return max(0.5 - distance * 0.05, 0.22)
-        case .fisheye: return max(0.85 - distance * 0.14, 0.2)
-        case .code: return 0.5
-        case .branches: return max(0.6 - distance * 0.06, 0.25)
-        case .web: return max(0.8 - distance * 0.15, 0.18)
-        case .constellation: return max(0.7 - distance * 0.08, 0.2)
+        case .classic: return max(0.5 - distance * 0.05, 0.22)
+        case .lens: return max(0.85 - distance * 0.14, 0.2)
+        case .terminal: return 0.5
+        case .graph: return max(0.6 - distance * 0.06, 0.25)
+        case .centered: return max(0.8 - distance * 0.15, 0.18)
+        case .stars: return max(0.7 - distance * 0.08, 0.2)
         }
     }
 
     private var rowScale: CGFloat {
         let distance = CGFloat(distance)
         switch style.layout {
-        case .ship: return isActive || theme == .mono ? 1 : 0.95
-        case .fisheye: return max(1 - distance * 0.13, 0.45)
-        case .web: return max(1 - distance * 0.08, 0.6)
-        case .code, .branches, .constellation: return 1
+        case .classic: return isActive || theme == .mono ? 1 : 0.95
+        case .lens: return max(1 - distance * 0.13, 0.45)
+        case .centered: return max(1 - distance * 0.08, 0.6)
+        case .terminal, .graph, .stars: return 1
         }
     }
 
     @ViewBuilder
     private var row: some View {
         switch style.layout {
-        case .ship, .fisheye, .web:
+        case .classic, .lens, .centered:
             content
-        case .code:
+        case .terminal:
             HStack(alignment: .firstTextBaseline, spacing: 16) {
                 Text(String(format: "%3d", line.id + 1))
                     .font(.system(size: 13 * scale, weight: .regular, design: .monospaced))
@@ -233,7 +233,7 @@ private struct LyricRow: View {
                     }
                 }
             }
-        case .branches:
+        case .graph:
             content
                 .padding(.leading, 44)
                 .background(alignment: .leading) {
@@ -247,7 +247,7 @@ private struct LyricRow: View {
                     .frame(width: 36)
                     .padding(.vertical, -spacing / 2)
                 }
-        case .constellation:
+        case .stars:
             HStack(spacing: 14) {
                 Circle()
                     .fill(isActive ? colors.highlight : colors.secondary.opacity(0.7))
@@ -278,7 +278,7 @@ private struct LyricRow: View {
     }
 
     private var font: Font {
-        style.layout == .code
+        style.layout == .terminal
             ? .system(size: 24 * scale, weight: .semibold, design: .monospaced)
             : lyricFont.font(40 * scale, .heavy, theme: theme)
     }

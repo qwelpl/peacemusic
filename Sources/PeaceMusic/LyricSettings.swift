@@ -34,41 +34,41 @@ enum LyricFont: String, CaseIterable, Identifiable {
 }
 
 enum LyricStyle: String, CaseIterable, Identifiable {
-    case ship, fisheye, visual, fisheyeVisual, codestyle, codestyleVisual, branches, web, constellation
+    case classic, lens, pulse, lensPulse, terminal, terminalPulse, graph, centered, stars
 
-    enum Layout { case ship, fisheye, code, branches, web, constellation }
+    enum Layout { case classic, lens, terminal, graph, centered, stars }
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .ship: "Ship"
-        case .fisheye: "Fisheye"
-        case .visual: "Visual"
-        case .fisheyeVisual: "Fisheye Visual"
-        case .codestyle: "Codestyle"
-        case .codestyleVisual: "Codestyle Visual"
-        case .branches: "Branches"
-        case .web: "Web"
-        case .constellation: "Constellation"
+        case .classic: "Classic"
+        case .lens: "Lens"
+        case .pulse: "Pulse"
+        case .lensPulse: "Lens Pulse"
+        case .terminal: "Terminal"
+        case .terminalPulse: "Terminal Pulse"
+        case .graph: "Graph"
+        case .centered: "Centered"
+        case .stars: "Stars"
         }
     }
 
     var layout: Layout {
         switch self {
-        case .ship, .visual: .ship
-        case .fisheye, .fisheyeVisual: .fisheye
-        case .codestyle, .codestyleVisual: .code
-        case .branches: .branches
-        case .web: .web
-        case .constellation: .constellation
+        case .classic, .pulse: .classic
+        case .lens, .lensPulse: .lens
+        case .terminal, .terminalPulse: .terminal
+        case .graph: .graph
+        case .centered: .centered
+        case .stars: .stars
         }
     }
 
-    // Visual styles pulse the current line with the music.
-    var isVisual: Bool { self == .visual || self == .fisheyeVisual || self == .codestyleVisual }
+    // Pulse styles throb the current line with the music.
+    var isPulsing: Bool { self == .pulse || self == .lensPulse || self == .terminalPulse }
 
-    var isCentered: Bool { layout == .web }
+    var isCentered: Bool { layout == .centered }
 }
 
 enum LyricSettings {
@@ -84,7 +84,7 @@ enum LyricSettings {
 }
 
 extension EnvironmentValues {
-    @Entry var lyricStyle: LyricStyle = .ship
+    @Entry var lyricStyle: LyricStyle = .classic
     @Entry var lyricFont: LyricFont = .theme
     @Entry var lyricScale: CGFloat = 1
     @Entry var lyricColors = LyricColors()
