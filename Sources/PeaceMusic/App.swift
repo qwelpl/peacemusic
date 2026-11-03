@@ -6,15 +6,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store: PlayerStore
     let miniPlayer: MiniPlayerController
     let analyzer = MusicAnalyzer()
+    private let screenAwake: ScreenAwake
 
     override init() {
         store = PlayerStore()
         miniPlayer = MiniPlayerController(store: store, analyzer: analyzer)
+        screenAwake = ScreenAwake(store: store)
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
+        screenAwake.start()
         // Menu bar apps don't come to the front on launch, which leaves keys with no window.
         if !CommandLine.arguments.contains("--mini") { NSApp.activate(ignoringOtherApps: true) }
         if CommandLine.arguments.contains("--mini") {
@@ -76,6 +79,7 @@ private struct MenuBarMenu: View {
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
     @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
     @AppStorage(LyricColorSlot.autoSyncKey) private var colorAutoSync = false
+    @AppStorage(ScreenAwake.key) private var keepsScreenAwake = false
 
     var body: some View {
         if let track = store.track {
@@ -90,6 +94,7 @@ private struct MenuBarMenu: View {
         Button("Show Peace", action: miniPlayer.showMainWindow)
         Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
         Toggle("Keep Mini Player Expanded", isOn: Binding(get: { miniPlayer.isPinned }, set: { _ in miniPlayer.togglePinned() }))
+        Toggle("Keep Screen Awake", isOn: $keepsScreenAwake)
         Divider()
         Section("Font") {
             Picker("Font", selection: $fontRaw) {
