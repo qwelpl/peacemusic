@@ -33,8 +33,11 @@ final class MiniPlayerController {
     private(set) var corner = MiniPlayerCorner()
     // Pinned keeps the hover layout up after the pointer leaves.
     private(set) var isPinned = UserDefaults.standard.bool(forKey: pinnedKey)
+    // Off keeps the mini player on the Space it was opened in.
+    private(set) var isOnAllSpaces = UserDefaults.standard.object(forKey: allSpacesKey) as? Bool ?? true
 
     private static let pinnedKey = "miniPlayerPinned"
+    private static let allSpacesKey = "miniPlayerAllSpaces"
 
     private let store: PlayerStore
     private let analyzer: MusicAnalyzer
@@ -97,6 +100,19 @@ final class MiniPlayerController {
         if isPinned { setExpanded(true) }
     }
 
+    func toggleAllSpaces() {
+        isOnAllSpaces.toggle()
+        UserDefaults.standard.set(isOnAllSpaces, forKey: Self.allSpacesKey)
+        if let panel { applySpaces(to: panel) }
+    }
+
+    private func applySpaces(to panel: NSPanel) {
+        panel.level = isOnAllSpaces ? .popUpMenu : .floating
+        panel.collectionBehavior = isOnAllSpaces
+            ? [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+            : [.ignoresCycle]
+    }
+
     fileprivate func pointerEntered() {
         setExpanded(true)
     }
@@ -135,8 +151,7 @@ final class MiniPlayerController {
         )
         // Resets the level, so set it first.
         panel.isFloatingPanel = true
-        panel.level = .popUpMenu
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        applySpaces(to: panel)
         panel.hidesOnDeactivate = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
