@@ -3,6 +3,9 @@ import SwiftUI
 struct LyricsPanel: View {
     @Environment(\.uiTheme) private var theme
     @Environment(PlayerStore.self) private var store
+    @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
+
+    private var lyricFont: LyricFont { LyricFont(rawValue: fontRaw) ?? .theme }
 
     var body: some View {
         Group {
@@ -12,7 +15,7 @@ struct LyricsPanel: View {
             case .plain(let text):
                 ScrollView(showsIndicators: false) {
                     Text(text)
-                        .font(theme.font(26, .semibold))
+                        .font(lyricFont.font(26, .semibold, theme: theme))
                         .lineSpacing(10)
                         .foregroundStyle(.white.opacity(0.85))
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -26,6 +29,7 @@ struct LyricsPanel: View {
                 LyricsMessage(text: "No lyrics for this one")
             }
         }
+        .environment(\.lyricFont, lyricFont)
         .mask {
             LinearGradient(
                 stops: [
@@ -42,11 +46,12 @@ struct LyricsPanel: View {
 
 private struct LyricsMessage: View {
     @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
     let text: String
 
     var body: some View {
         Text(text)
-            .font(theme.font(30, .bold))
+            .font(lyricFont.font(30, .bold, theme: theme))
             .foregroundStyle(.white.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -86,6 +91,7 @@ private struct SyncedLyrics: View {
 
 private struct LyricRow: View {
     @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
     let line: LyricLine
     let distance: Int
 
@@ -123,7 +129,7 @@ private struct LyricRow: View {
         }
     }
 
-    private var font: Font { theme.font(40, .heavy) }
+    private var font: Font { lyricFont.font(40, .heavy, theme: theme) }
 
     private func wordTimedText(_ words: [LyricWord], position: Double) -> Text {
         var string = AttributedString()

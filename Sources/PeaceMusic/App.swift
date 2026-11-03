@@ -73,6 +73,7 @@ struct PeaceApp: App {
 private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
+    @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
 
     var body: some View {
         if let track = store.track {
@@ -87,6 +88,14 @@ private struct MenuBarMenu: View {
         Button("Show Peace", action: miniPlayer.showMainWindow)
         Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
         Toggle("Keep Mini Player Expanded", isOn: Binding(get: { miniPlayer.isPinned }, set: { _ in miniPlayer.togglePinned() }))
+        Divider()
+        Section("Font") {
+            Picker("Font", selection: $fontRaw) {
+                ForEach(LyricFont.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
         Divider()
         Button("Quit Peace") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
