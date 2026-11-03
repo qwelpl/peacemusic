@@ -33,7 +33,46 @@ enum LyricFont: String, CaseIterable, Identifiable {
     }
 }
 
+enum LyricStyle: String, CaseIterable, Identifiable {
+    case ship, fisheye, visual, fisheyeVisual, codestyle, codestyleVisual, branches, web, constellation
+
+    enum Layout { case ship, fisheye, code, branches, web, constellation }
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .ship: "Ship"
+        case .fisheye: "Fisheye"
+        case .visual: "Visual"
+        case .fisheyeVisual: "Fisheye Visual"
+        case .codestyle: "Codestyle"
+        case .codestyleVisual: "Codestyle Visual"
+        case .branches: "Branches"
+        case .web: "Web"
+        case .constellation: "Constellation"
+        }
+    }
+
+    var layout: Layout {
+        switch self {
+        case .ship, .visual: .ship
+        case .fisheye, .fisheyeVisual: .fisheye
+        case .codestyle, .codestyleVisual: .code
+        case .branches: .branches
+        case .web: .web
+        case .constellation: .constellation
+        }
+    }
+
+    // Visual styles pulse the current line with the music.
+    var isVisual: Bool { self == .visual || self == .fisheyeVisual || self == .codestyleVisual }
+
+    var isCentered: Bool { layout == .web }
+}
+
 enum LyricSettings {
+    static let styleKey = "lyricStyle"
     static let fontKey = "lyricFont"
     static let scaleKey = "lyricScale"
     static let scaleRange = 0.6...1.6
@@ -45,6 +84,7 @@ enum LyricSettings {
 }
 
 extension EnvironmentValues {
+    @Entry var lyricStyle: LyricStyle = .ship
     @Entry var lyricFont: LyricFont = .theme
     @Entry var lyricScale: CGFloat = 1
     @Entry var lyricColors = LyricColors()

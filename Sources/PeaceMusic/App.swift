@@ -85,6 +85,7 @@ private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @Environment(DisplayPicker.self) private var displays
+    @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.ship.rawValue
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
     @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
     @AppStorage(LyricColorSlot.autoSyncKey) private var colorAutoSync = false
@@ -99,6 +100,14 @@ private struct MenuBarMenu: View {
         Button(store.isPlaying ? "Pause" : "Play", action: store.togglePlayPause)
         Button("Next", action: store.next)
         Button("Previous", action: store.previous)
+        Divider()
+        Section("Style") {
+            Picker("Style", selection: $styleRaw) {
+                ForEach(LyricStyle.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
         Divider()
         Button("Show Peace", action: miniPlayer.showMainWindow)
         Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
