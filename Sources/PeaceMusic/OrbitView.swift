@@ -186,6 +186,8 @@ private final class OrbitMotion {
 private struct OrbitLyric: View {
     @Environment(PlayerStore.self) private var store
     @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
+    @Environment(\.lyricScale) private var scale
 
     var body: some View {
         Group {
@@ -199,7 +201,7 @@ private struct OrbitLyric: View {
                 Text(" ")
             }
         }
-        .font(theme.font(30, .heavy))
+        .font(lyricFont.font(30 * scale, .heavy, theme: theme))
         .multilineTextAlignment(.center)
         .lineLimit(2)
         .minimumScaleFactor(0.6)

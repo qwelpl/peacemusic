@@ -4,15 +4,14 @@ struct LyricsPanel: View {
     @Environment(\.uiTheme) private var theme
     @Environment(PlayerStore.self) private var store
     @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.classic.rawValue
-    @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
-    @AppStorage(LyricSettings.scaleKey) private var scale = 1.0
+    @Environment(\.lyricFont) private var lyricFont
+    @Environment(\.lyricScale) private var scale
     // Read so the panel redraws when a color changes.
     @AppStorage(LyricColorSlot.autoSyncKey) private var autoSync = false
     @AppStorage(LyricColorSlot.text.key) private var textHex = ""
     @AppStorage(LyricColorSlot.highlight.key) private var highlightHex = ""
     @AppStorage(LyricColorSlot.secondary.key) private var secondaryHex = ""
 
-    private var lyricFont: LyricFont { LyricFont(rawValue: fontRaw) ?? .theme }
     private var colors: LyricColors { LyricColorSlot.resolved(mesh: store.meshColors) }
 
     var body: some View {
@@ -38,8 +37,6 @@ struct LyricsPanel: View {
             }
         }
         .environment(\.lyricStyle, LyricStyle(rawValue: styleRaw) ?? .classic)
-        .environment(\.lyricFont, lyricFont)
-        .environment(\.lyricScale, scale)
         .environment(\.lyricColors, colors)
         .mask {
             LinearGradient(

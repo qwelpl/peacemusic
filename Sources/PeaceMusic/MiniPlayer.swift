@@ -285,6 +285,7 @@ private struct MiniPlayerView: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @AppStorage("uiTheme") private var themeRaw = UITheme.glass.rawValue
+    @AppStorage(LyricSettings.fontKey) private var lyricFontRaw = LyricFont.theme.rawValue
 
     private var theme: UITheme { UITheme(rawValue: themeRaw) ?? .glass }
     private var shape: RoundedRectangle {
@@ -300,6 +301,7 @@ private struct MiniPlayerView: View {
             }
         }
         .environment(\.uiTheme, theme)
+        .environment(\.lyricFont, LyricFont(rawValue: lyricFontRaw) ?? .theme)
         .preferredColorScheme(.dark)
     }
 
@@ -335,6 +337,7 @@ private struct MiniPlayerView: View {
 private struct CompactMini: View {
     @Environment(PlayerStore.self) private var store
     @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
 
     var body: some View {
         HStack(spacing: 11) {
@@ -344,7 +347,7 @@ private struct CompactMini: View {
                     .font(theme.font(13, .heavy))
                     .foregroundStyle(.white)
                 MiniLyricLine()
-                    .font(theme.font(11, .medium))
+                    .font(lyricFont.font(11, .medium, theme: theme))
                     .foregroundStyle(.white.opacity(0.72))
             }
             .lineLimit(1)
@@ -361,6 +364,7 @@ private struct ExpandedMini: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
 
     var body: some View {
         HStack(spacing: 14) {
@@ -397,7 +401,7 @@ private struct ExpandedMini: View {
                 }
                 Spacer(minLength: 2)
                 MiniLyricLine()
-                    .font(theme.font(13, .semibold))
+                    .font(lyricFont.font(13, .semibold, theme: theme))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                 Spacer(minLength: 2)

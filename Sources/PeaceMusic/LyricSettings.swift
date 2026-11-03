@@ -31,6 +31,27 @@ enum LyricFont: String, CaseIterable, Identifiable {
         case .didot: .custom("Didot", size: size).weight(weight)
         }
     }
+
+    // For text that is measured in AppKit. Nil means the caller's own default.
+    func nsFont(_ size: CGFloat, weight: NSFont.Weight) -> NSFont? {
+        let system = NSFont.systemFont(ofSize: size, weight: weight)
+        let family: String
+        switch self {
+        case .theme: return nil
+        case .sfPro: return system
+        case .sfRounded: return system.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: size) }
+        case .newYork: return system.fontDescriptor.withDesign(.serif).flatMap { NSFont(descriptor: $0, size: size) }
+        case .helveticaNeue: family = "Helvetica Neue"
+        case .avenirNext: family = "Avenir Next"
+        case .futura: family = "Futura"
+        case .didot: family = "Didot"
+        }
+        let descriptor = NSFontDescriptor(fontAttributes: [
+            .family: family,
+            .traits: [NSFontDescriptor.TraitKey.weight: weight],
+        ])
+        return NSFont(descriptor: descriptor, size: size)
+    }
 }
 
 enum LyricStyle: String, CaseIterable, Identifiable {

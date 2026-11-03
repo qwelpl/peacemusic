@@ -18,6 +18,8 @@ struct NowPlayingView: View {
     @AppStorage("playerMode") private var modeRaw = PlayerMode.turntable.rawValue
     @AppStorage("heroStyle") private var heroStyleRaw = HeroStyle.vinyl.rawValue
     @AppStorage("showsLyrics") private var showsLyrics = true
+    @AppStorage(LyricSettings.fontKey) private var lyricFontRaw = LyricFont.theme.rawValue
+    @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
     @State private var showsLibrary = false
     @State private var lastActivity = Date()
     @State private var isIdle = false
@@ -66,6 +68,8 @@ struct NowPlayingView: View {
         .overlay(alignment: .topTrailing) { topBar }
         .overlay(alignment: .top) { syncToast }
         .environment(\.uiTheme, theme)
+        .environment(\.lyricFont, LyricFont(rawValue: lyricFontRaw) ?? .theme)
+        .environment(\.lyricScale, lyricScale)
         .preferredColorScheme(.dark)
         .focusable()
         .focusEffectDisabled()
