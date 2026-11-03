@@ -86,6 +86,7 @@ private struct MenuBarMenu: View {
         Divider()
         Button("Show Peace", action: miniPlayer.showMainWindow)
         Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
+        Toggle("Keep Mini Player Expanded", isOn: Binding(get: { miniPlayer.isPinned }, set: { _ in miniPlayer.togglePinned() }))
         Divider()
         Button("Quit Peace") { NSApp.terminate(nil) }
             .keyboardShortcut("q")

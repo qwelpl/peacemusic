@@ -31,6 +31,10 @@ final class MiniPlayerController {
     private(set) var isOpen = false
     private(set) var isExpanded = false
     private(set) var corner = MiniPlayerCorner()
+    // Pinned keeps the hover layout up after the pointer leaves.
+    private(set) var isPinned = UserDefaults.standard.bool(forKey: pinnedKey)
+
+    private static let pinnedKey = "miniPlayerPinned"
 
     private let store: PlayerStore
     private let analyzer: MusicAnalyzer
@@ -51,7 +55,7 @@ final class MiniPlayerController {
     func open() {
         guard !isOpen else { return }
         isOpen = true
-        isExpanded = false
+        isExpanded = isPinned
         let panel = panel ?? makePanel()
         self.panel = panel
         panel.orderFrontRegardless()
@@ -87,12 +91,19 @@ final class MiniPlayerController {
         withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) { isExpanded = expanded }
     }
 
+    func togglePinned() {
+        isPinned.toggle()
+        UserDefaults.standard.set(isPinned, forKey: Self.pinnedKey)
+        if isPinned { setExpanded(true) }
+    }
+
     fileprivate func pointerEntered() {
         setExpanded(true)
     }
 
     fileprivate func pointerExited() {
         collapseTask?.cancel()
+        guard !isPinned else { return }
         collapseTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(0.45))
             if !Task.isCancelled { self?.setExpanded(false) }
@@ -340,6 +351,15 @@ private struct ExpandedMini: View {
                     }
                     .lineLimit(1)
                     Spacer(minLength: 0)
+                    PlayerButton(
+                        symbol: miniPlayer.isPinned ? "pin.fill" : "pin",
+                        title: "PIN",
+                        diameter: 26,
+                        iconSize: 10,
+                        isOn: miniPlayer.isPinned,
+                        action: miniPlayer.togglePinned
+                    )
+                    .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
                     PlayerButton(
                         symbol: "arrow.up.left.and.arrow.down.right",
                         title: "OPEN",
