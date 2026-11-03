@@ -4,6 +4,7 @@ struct LyricsPanel: View {
     @Environment(\.uiTheme) private var theme
     @Environment(PlayerStore.self) private var store
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
+    @AppStorage(LyricSettings.scaleKey) private var scale = 1.0
 
     private var lyricFont: LyricFont { LyricFont(rawValue: fontRaw) ?? .theme }
 
@@ -15,8 +16,8 @@ struct LyricsPanel: View {
             case .plain(let text):
                 ScrollView(showsIndicators: false) {
                     Text(text)
-                        .font(lyricFont.font(26, .semibold, theme: theme))
-                        .lineSpacing(10)
+                        .font(lyricFont.font(26 * scale, .semibold, theme: theme))
+                        .lineSpacing(10 * scale)
                         .foregroundStyle(.white.opacity(0.85))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 90)
@@ -30,6 +31,7 @@ struct LyricsPanel: View {
             }
         }
         .environment(\.lyricFont, lyricFont)
+        .environment(\.lyricScale, scale)
         .mask {
             LinearGradient(
                 stops: [
@@ -47,11 +49,12 @@ struct LyricsPanel: View {
 private struct LyricsMessage: View {
     @Environment(\.uiTheme) private var theme
     @Environment(\.lyricFont) private var lyricFont
+    @Environment(\.lyricScale) private var scale
     let text: String
 
     var body: some View {
         Text(text)
-            .font(lyricFont.font(30, .bold, theme: theme))
+            .font(lyricFont.font(30 * scale, .bold, theme: theme))
             .foregroundStyle(.white.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -61,12 +64,13 @@ private struct SyncedLyrics: View {
     let lines: [LyricLine]
 
     @Environment(PlayerStore.self) private var store
+    @Environment(\.lyricScale) private var scale
 
     var body: some View {
         GeometryReader { geometry in
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 30) {
+                    VStack(alignment: .leading, spacing: 30 * scale) {
                         ForEach(lines) { line in
                             LyricRow(line: line, distance: distance(of: line))
                             .id(line.id)
@@ -92,6 +96,7 @@ private struct SyncedLyrics: View {
 private struct LyricRow: View {
     @Environment(\.uiTheme) private var theme
     @Environment(\.lyricFont) private var lyricFont
+    @Environment(\.lyricScale) private var scale
     let line: LyricLine
     let distance: Int
 
@@ -129,7 +134,7 @@ private struct LyricRow: View {
         }
     }
 
-    private var font: Font { lyricFont.font(40, .heavy, theme: theme) }
+    private var font: Font { lyricFont.font(40 * scale, .heavy, theme: theme) }
 
     private func wordTimedText(_ words: [LyricWord], position: Double) -> Text {
         var string = AttributedString()

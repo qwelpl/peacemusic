@@ -34,8 +34,16 @@ enum LyricFont: String, CaseIterable, Identifiable {
 
 enum LyricSettings {
     static let fontKey = "lyricFont"
+    static let scaleKey = "lyricScale"
+    static let scaleRange = 0.6...1.6
+    static let scaleStep = 0.1
+
+    static func clampedScale(_ scale: Double) -> Double {
+        min(max((scale * 10).rounded() / 10, scaleRange.lowerBound), scaleRange.upperBound)
+    }
 }
 
 extension EnvironmentValues {
     @Entry var lyricFont: LyricFont = .theme
+    @Entry var lyricScale: CGFloat = 1
 }

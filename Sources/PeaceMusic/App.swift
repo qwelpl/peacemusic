@@ -74,6 +74,7 @@ private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
+    @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
 
     var body: some View {
         if let track = store.track {
@@ -97,8 +98,24 @@ private struct MenuBarMenu: View {
             .labelsHidden()
         }
         Divider()
+        Section("Text Size · \(Int((lyricScale * 100).rounded()))%") {
+            Button("Larger") { setLyricScale(lyricScale + LyricSettings.scaleStep) }
+                .keyboardShortcut("+")
+                .disabled(lyricScale >= LyricSettings.scaleRange.upperBound)
+            Button("Smaller") { setLyricScale(lyricScale - LyricSettings.scaleStep) }
+                .keyboardShortcut("-")
+                .disabled(lyricScale <= LyricSettings.scaleRange.lowerBound)
+            Button("Reset") { setLyricScale(1) }
+                .keyboardShortcut("0")
+                .disabled(lyricScale == 1)
+        }
+        Divider()
         Button("Quit Peace") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+
+    private func setLyricScale(_ scale: Double) {
+        lyricScale = LyricSettings.clampedScale(scale)
     }
 }
 
