@@ -5,8 +5,14 @@ struct LyricsPanel: View {
     @Environment(PlayerStore.self) private var store
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
     @AppStorage(LyricSettings.scaleKey) private var scale = 1.0
+    // Read so the panel redraws when a color changes.
+    @AppStorage(LyricColorSlot.autoSyncKey) private var autoSync = false
+    @AppStorage(LyricColorSlot.text.key) private var textHex = ""
+    @AppStorage(LyricColorSlot.highlight.key) private var highlightHex = ""
+    @AppStorage(LyricColorSlot.secondary.key) private var secondaryHex = ""
 
     private var lyricFont: LyricFont { LyricFont(rawValue: fontRaw) ?? .theme }
+    private var colors: LyricColors { LyricColorSlot.resolved(mesh: store.meshColors) }
 
     var body: some View {
         Group {
@@ -18,7 +24,7 @@ struct LyricsPanel: View {
                     Text(text)
                         .font(lyricFont.font(26 * scale, .semibold, theme: theme))
                         .lineSpacing(10 * scale)
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(colors.text.opacity(0.85))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 90)
                 }
@@ -32,6 +38,7 @@ struct LyricsPanel: View {
         }
         .environment(\.lyricFont, lyricFont)
         .environment(\.lyricScale, scale)
+        .environment(\.lyricColors, colors)
         .mask {
             LinearGradient(
                 stops: [
@@ -50,12 +57,13 @@ private struct LyricsMessage: View {
     @Environment(\.uiTheme) private var theme
     @Environment(\.lyricFont) private var lyricFont
     @Environment(\.lyricScale) private var scale
+    @Environment(\.lyricColors) private var colors
     let text: String
 
     var body: some View {
         Text(text)
             .font(lyricFont.font(30 * scale, .bold, theme: theme))
-            .foregroundStyle(.white.opacity(0.45))
+            .foregroundStyle(colors.secondary.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -97,6 +105,7 @@ private struct LyricRow: View {
     @Environment(\.uiTheme) private var theme
     @Environment(\.lyricFont) private var lyricFont
     @Environment(\.lyricScale) private var scale
+    @Environment(\.lyricColors) private var colors
     let line: LyricLine
     let distance: Int
 
@@ -130,7 +139,7 @@ private struct LyricRow: View {
                 wordTimedText(words, position: store.lyricPosition(at: context.date))
             }
         } else {
-            Text(line.text).font(font).foregroundStyle(.white)
+            Text(line.text).font(font).foregroundStyle(isActive ? colors.text : colors.secondary)
         }
     }
 
@@ -141,8 +150,12 @@ private struct LyricRow: View {
         for (index, word) in words.enumerated() {
             let lit = min(max((position - word.time) / max(word.duration, 0.12), 0), 1)
             var piece = AttributedString(index == 0 ? word.text : " " + word.text)
-            let brightness = theme == .glass ? 0.4 + 0.6 * lit : (lit > 0 ? 1 : 0.32)
-            piece.foregroundColor = .white.opacity(brightness)
+            switch theme {
+            case .glass:
+                piece.foregroundColor = lit > 0 ? colors.highlight.opacity(0.4 + 0.6 * lit) : colors.text.opacity(0.4)
+            case .mono:
+                piece.foregroundColor = lit > 0 ? colors.highlight : colors.text.opacity(0.32)
+            }
             string += piece
         }
         return Text(string).font(font)

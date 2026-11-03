@@ -75,6 +75,7 @@ private struct MenuBarMenu: View {
     @Environment(MiniPlayerController.self) private var miniPlayer
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
     @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
+    @AppStorage(LyricColorSlot.autoSyncKey) private var colorAutoSync = false
 
     var body: some View {
         if let track = store.track {
@@ -108,6 +109,14 @@ private struct MenuBarMenu: View {
             Button("Reset") { setLyricScale(1) }
                 .keyboardShortcut("0")
                 .disabled(lyricScale == 1)
+        }
+        Divider()
+        Section("Color") {
+            Toggle("Auto Sync", isOn: $colorAutoSync)
+            ForEach(LyricColorSlot.allCases) { slot in
+                Button("\(slot.title)…") { LyricColorPanel.shared.edit(slot) }
+            }
+            Button("Reset Colors", action: LyricColorSlot.reset)
         }
         Divider()
         Button("Quit Peace") { NSApp.terminate(nil) }

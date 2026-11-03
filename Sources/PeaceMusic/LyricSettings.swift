@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum LyricFont: String, CaseIterable, Identifiable {
@@ -46,4 +47,107 @@ enum LyricSettings {
 extension EnvironmentValues {
     @Entry var lyricFont: LyricFont = .theme
     @Entry var lyricScale: CGFloat = 1
+    @Entry var lyricColors = LyricColors()
+}
+
+struct LyricColors {
+    var text: Color = .white
+    var highlight: Color = .white
+    var secondary: Color = .white
+
+    // Tints the lyrics with the most colorful part of the artwork.
+    static func synced(from mesh: [Color]) -> LyricColors {
+        let accent = mesh
+            .map { NSColor($0).usingColorSpace(.sRGB) ?? .white }
+            .max { $0.saturationComponent < $1.saturationComponent }
+        guard let accent, accent.saturationComponent > 0.12 else { return LyricColors() }
+        let hue = accent.hueComponent
+        return LyricColors(
+            text: .white,
+            highlight: Color(hue: hue, saturation: 0.5, brightness: 1),
+            secondary: Color(hue: hue, saturation: 0.22, brightness: 0.95)
+        )
+    }
+}
+
+enum LyricColorSlot: String, CaseIterable, Identifiable {
+    case text, highlight, secondary
+
+    var id: Self { self }
+    var key: String { "lyricColor.\(rawValue)" }
+
+    var title: String {
+        switch self {
+        case .text: "Lyric Text"
+        case .highlight: "Highlight"
+        case .secondary: "Secondary Text"
+        }
+    }
+
+    static let autoSyncKey = "lyricColor.autoSync"
+
+    static func resolved(mesh: [Color]) -> LyricColors {
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: autoSyncKey) { return .synced(from: mesh) }
+        func color(_ slot: LyricColorSlot) -> Color {
+            defaults.string(forKey: slot.key).flatMap(Color.init(hex:)) ?? .white
+        }
+        return LyricColors(text: color(.text), highlight: color(.highlight), secondary: color(.secondary))
+    }
+
+    static func reset() {
+        for slot in allCases { UserDefaults.standard.removeObject(forKey: slot.key) }
+        UserDefaults.standard.set(false, forKey: autoSyncKey)
+    }
+}
+
+@MainActor
+final class LyricColorPanel: NSObject {
+    static let shared = LyricColorPanel()
+    private var slot: LyricColorSlot?
+
+    func edit(_ slot: LyricColorSlot) {
+        self.slot = nil
+        let panel = NSColorPanel.shared
+        panel.showsAlpha = false
+        panel.isContinuous = true
+        panel.title = slot.title
+        panel.color = UserDefaults.standard.string(forKey: slot.key).flatMap(NSColor.init(hex:)) ?? .white
+        self.slot = slot
+        panel.setTarget(self)
+        panel.setAction(#selector(colorChanged(_:)))
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func colorChanged(_ panel: NSColorPanel) {
+        guard let slot, let hex = panel.color.hex else { return }
+        UserDefaults.standard.set(hex, forKey: slot.key)
+        UserDefaults.standard.set(false, forKey: LyricColorSlot.autoSyncKey)
+    }
+}
+
+extension NSColor {
+    convenience init?(hex: String) {
+        guard hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16), hex.count == 7 else { return nil }
+        self.init(
+            srgbRed: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+
+    var hex: String? {
+        guard let rgb = usingColorSpace(.sRGB) else { return nil }
+        let channels = [rgb.redComponent, rgb.greenComponent, rgb.blueComponent].map { Int(($0 * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", channels[0], channels[1], channels[2])
+    }
+}
+
+extension Color {
+    init?(hex: String) {
+        guard let color = NSColor(hex: hex) else { return nil }
+        self.init(nsColor: color)
+    }
 }
