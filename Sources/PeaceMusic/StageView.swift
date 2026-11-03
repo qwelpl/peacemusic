@@ -212,7 +212,7 @@ private struct StageLayout {
     }
 }
 
-private struct StageFooter: View {
+struct StageFooter: View {
     @Environment(\.uiTheme) private var theme
     let chromeVisible: Bool
 
