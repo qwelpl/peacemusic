@@ -9,7 +9,8 @@ struct ConstellationView: View {
     @Environment(\.musicAnalyzer) private var analyzer
     @Environment(\.uiTheme) private var theme
     @State private var motion = ConstellationMotion()
-    @State private var power = PowerState()
+    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
+    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -17,8 +18,7 @@ struct ConstellationView: View {
             FluidBackground(colors: store.meshColors, trackID: store.track?.id, isPlaying: store.isPlaying)
                 .opacity(0.1)
 
-            // The sky moves slowly, so 30 fps looks the same as 60; drop further to save battery.
-            TimelineView(.animation(minimumInterval: power.isSaving ? 1.0 / 15 : 1.0 / 30, paused: !store.isPlaying)) { context in
+            TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { context in
                 let audio = analyzer.reading
                 let pulse = OrbitPulse(store: store, audio: audio, at: context.date)
                 let vocals = vocalTrace(at: context.date)
@@ -42,8 +42,6 @@ struct ConstellationView: View {
                 .padding(24)
         }
         .listensToMusic()
-        .onAppear { power.start() }
-        .onDisappear { power.stop() }
     }
 
     // The current and previous lyric lines, with a start time for every syllable.

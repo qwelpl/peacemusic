@@ -6,13 +6,12 @@ import Observation
 @MainActor
 @Observable
 final class PowerState {
+    static let shared = PowerState()
+
     private(set) var isSaving = PowerState.check()
 
-    private var task: Task<Void, Never>?
-
-    func start() {
-        guard task == nil else { return }
-        task = Task { [weak self] in
+    private init() {
+        Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
                 let saving = PowerState.check()
@@ -21,15 +20,26 @@ final class PowerState {
         }
     }
 
-    func stop() {
-        task?.cancel()
-        task = nil
-    }
-
     private static func check() -> Bool {
         if ProcessInfo.processInfo.isLowPowerModeEnabled { return true }
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let source = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() else { return false }
         return source as String == kIOPMBatteryPowerKey
+    }
+}
+
+// How often the audio visualizers (Halftone, Orbit, Constellation) redraw.
+enum FrameRate {
+    static let key = "frameRate"
+    static let savesBatteryKey = "frameRateSavesBattery"
+    static let choices = [15, 30, 60, 120]
+    static let standard = 30
+
+    // On battery the rate halves, but never below the lowest choice.
+    @MainActor
+    static func interval(_ rate: Int, savesBattery: Bool) -> Double {
+        let lowest = choices[0]
+        let pace = savesBattery && PowerState.shared.isSaving ? max(rate / 2, lowest) : rate
+        return 1 / Double(max(pace, lowest))
     }
 }

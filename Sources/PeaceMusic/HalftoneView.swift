@@ -67,9 +67,11 @@ struct HalftoneField: View {
     @Environment(PlayerStore.self) private var store
     @Environment(\.musicAnalyzer) private var analyzer
     @State private var renderer = HalftoneRenderer()
+    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
+    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !store.isPlaying)) { context in
+        TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { context in
             let date = context.date
             let audio = analyzer.reading
             Canvas(opaque: true) { graphics, size in

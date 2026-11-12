@@ -9,6 +9,8 @@ struct OrbitView: View {
     @Environment(\.musicAnalyzer) private var analyzer
     @Environment(\.uiTheme) private var theme
     @State private var motion = OrbitMotion()
+    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
+    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
 
     var body: some View {
         ZStack {
@@ -18,7 +20,7 @@ struct OrbitView: View {
 
             VStack(spacing: 14) {
                 GeometryReader { geometry in
-                    TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !store.isPlaying)) { context in
+                    TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { context in
                         let pulse = OrbitPulse(store: store, audio: analyzer.reading, at: context.date)
                         let radius = min(geometry.size.width, geometry.size.height) * 0.17
                         ZStack {

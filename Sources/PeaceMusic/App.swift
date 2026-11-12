@@ -91,6 +91,8 @@ private struct MenuBarMenu: View {
     @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
     @AppStorage(LyricColorSlot.autoSyncKey) private var colorAutoSync = false
     @AppStorage(ScreenAwake.key) private var keepsScreenAwake = false
+    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
+    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
 
     var body: some View {
         if let track = store.track {
@@ -147,6 +149,15 @@ private struct MenuBarMenu: View {
             }
             Divider()
         }
+        Section("Frame Rate") {
+            Picker("Frame Rate", selection: $frameRate) {
+                ForEach(FrameRate.choices, id: \.self) { Text("\($0) fps").tag($0) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            Toggle("Halve on Battery", isOn: $savesBattery)
+        }
+        Divider()
         Section("Color") {
             Toggle("Auto Sync", isOn: $colorAutoSync)
             ForEach(LyricColorSlot.allCases) { slot in

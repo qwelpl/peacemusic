@@ -14,7 +14,7 @@ Controls Music.app over Apple Events, so no developer token is needed.
 
 ## Menu bar
 
-Peace runs from the menu bar, with no Dock icon. The menu has playback controls, the full player, the mini player and Quit.
+Peace runs from the menu bar, with no Dock icon. The menu has playback controls, the full player, the mini player and Quit. Frame Rate sets how often Halftone, Orbit and Constellation redraw (30 fps by default); Halve on Battery slows them further on battery or in Low Power Mode.
 
 ## Mini player
 
