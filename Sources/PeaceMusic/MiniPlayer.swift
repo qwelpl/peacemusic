@@ -461,13 +461,15 @@ private struct MiniSpectrumRing: View {
             for bar in 0..<Self.barCount {
                 let band = bar < spectrum.count ? bar : Self.barCount - 1 - bar
                 let value = CGFloat(spectrum[band])
-                let angle = Double(bar) / Double(Self.barCount) * 2 * .pi - .pi / 2
-                let start = innerRadius
-                let end = start + max(reach * value, 0.8)
-                bars.move(to: CGPoint(x: center.x + cos(angle) * start, y: center.y + sin(angle) * start))
-                bars.addLine(to: CGPoint(x: center.x + cos(angle) * end, y: center.y + sin(angle) * end))
+                let angle: CGFloat = CGFloat(bar) / CGFloat(Self.barCount) * 2 * .pi - .pi / 2
+                let dx: CGFloat = cos(angle)
+                let dy: CGFloat = sin(angle)
+                let start: CGFloat = innerRadius
+                let end: CGFloat = start + max(reach * value, 0.8)
+                bars.move(to: CGPoint(x: center.x + dx * start, y: center.y + dy * start))
+                bars.addLine(to: CGPoint(x: center.x + dx * end, y: center.y + dy * end))
             }
-            let width = max(innerRadius * 2 * .pi / CGFloat(Self.barCount) * 0.55, 1)
+            let width: CGFloat = max(innerRadius * 2 * .pi / CGFloat(Self.barCount) * 0.55, 1)
             context.stroke(bars, with: .color(.white.opacity(0.92)), style: StrokeStyle(lineWidth: width, lineCap: .round))
         }
     }
