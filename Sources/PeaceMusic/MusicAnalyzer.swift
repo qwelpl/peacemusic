@@ -314,12 +314,13 @@ final class MusicAnalyzer: @unchecked Sendable {
 
         let detector = MusicDetector(sampleRate: format.mSampleRate)
         var newProc: AudioDeviceIOProcID?
-        let status = AudioDeviceCreateIOProcIDWithBlock(&newProc, newAggregate, ioQueue) { [weak self] _, input, _, _, _ in
+        let status = AudioDeviceCreateIOProcIDWithBlock(&newProc, newAggregate, ioQueue) { [weak self] _, input, inputTime, _, _ in
             let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             guard let buffer = buffers.first, let data = buffer.mData else { return }
             let stride = max(Int(buffer.mNumberChannels), 1)
             let frames = Int(buffer.mDataByteSize) / (MemoryLayout<Float>.size * stride)
-            self?.feed(detector, data.assumingMemoryBound(to: Float.self), frames: frames, stride: stride)
+            let lag = Double(AudioConvertHostTimeToNanos(AudioGetCurrentHostTime() &- inputTime.pointee.mHostTime)) / 1e9
+            self?.feed(detector, data.assumingMemoryBound(to: Float.self), frames: frames, stride: stride, lag: lag)
         }
         guard status == noErr, let newProc else { return false }
         procID = newProc
@@ -328,7 +329,7 @@ final class MusicAnalyzer: @unchecked Sendable {
         return AudioDeviceStart(newAggregate, newProc) == noErr
     }
 
-    private func feed(_ detector: MusicDetector, _ samples: UnsafePointer<Float>, frames: Int, stride: Int) {
+    private func feed(_ detector: MusicDetector, _ samples: UnsafePointer<Float>, frames: Int, stride: Int, lag: Double = 0) {
         let bassBefore = detector.onsetCount
         let midBefore = detector.midOnsetCount
         detector.consume(samples, frames: frames, stride: stride)
@@ -351,9 +352,9 @@ final class MusicAnalyzer: @unchecked Sendable {
         if let path = Self.diagnosticPath, now.timeIntervalSince(lastDiagnostic) >= 1 {
             lastDiagnostic = now
             let line = String(
-                format: "peak=%.4f bass=%.2f mid=%.2f high=%.2f bassHits=%d midHits=%d\n",
+                format: "peak=%.4f bass=%.2f mid=%.2f high=%.2f bassHits=%d midHits=%d frames=%d lag=%.3f\n",
                 detector.loudest, detector.bassLevel, detector.midLevel, detector.highLevel,
-                detector.onsetCount, detector.midOnsetCount
+                detector.onsetCount, detector.midOnsetCount, frames, lag
             )
             detector.resetLoudest()
             if let handle = FileHandle(forWritingAtPath: path) {
