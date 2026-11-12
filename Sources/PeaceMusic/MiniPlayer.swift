@@ -317,7 +317,7 @@ private struct CompactMini: View {
                 Text(store.track?.title ?? "Nothing playing")
                     .font(theme.font(13, .heavy))
                     .foregroundStyle(.white)
-                MiniLyricLine()
+                MiniLyricLine(fallback: store.track?.artist ?? "")
                     .font(theme.font(11, .medium))
                     .foregroundStyle(.white.opacity(0.72))
             }
@@ -335,6 +335,7 @@ private struct ExpandedMini: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @Environment(\.uiTheme) private var theme
+    @AppStorage("miniShowsLyrics") private var showsLyrics = true
 
     var body: some View {
         HStack(spacing: 14) {
@@ -361,6 +362,15 @@ private struct ExpandedMini: View {
                     )
                     .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
                     PlayerButton(
+                        symbol: "quote.bubble",
+                        title: "LRC",
+                        diameter: 26,
+                        iconSize: 10,
+                        isOn: showsLyrics,
+                        action: { showsLyrics.toggle() }
+                    )
+                    .help(showsLyrics ? "Hide lyrics" : "Show lyrics")
+                    PlayerButton(
                         symbol: "arrow.up.left.and.arrow.down.right",
                         title: "OPEN",
                         diameter: 26,
@@ -370,7 +380,8 @@ private struct ExpandedMini: View {
                     .help("Back to the full player")
                 }
                 Spacer(minLength: 2)
-                MiniLyricLine()
+                // Artist already sits under the title, so the album fills this slot.
+                MiniLyricLine(fallback: store.track?.album ?? "")
                     .font(theme.font(13, .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
@@ -510,7 +521,10 @@ private struct MiniEqualizer: View {
 }
 
 private struct MiniLyricLine: View {
+    let fallback: String
+
     @Environment(PlayerStore.self) private var store
+    @AppStorage("miniShowsLyrics") private var showsLyrics = true
 
     var body: some View {
         Text(text)
@@ -519,15 +533,11 @@ private struct MiniLyricLine: View {
     }
 
     private var text: String {
-        switch store.lyrics {
-        case .synced(let lines):
-            guard let index = store.lyricIndex, !lines[index].isInterlude else {
-                return store.track?.artist ?? ""
-            }
-            return lines[index].text
-        default:
-            return store.track?.artist ?? ""
+        guard showsLyrics, case .synced(let lines) = store.lyrics,
+              let index = store.lyricIndex, !lines[index].isInterlude else {
+            return fallback
         }
+        return lines[index].text
     }
 }
 

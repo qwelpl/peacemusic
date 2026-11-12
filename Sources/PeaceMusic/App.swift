@@ -73,6 +73,7 @@ struct PeaceApp: App {
 private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
+    @AppStorage("miniShowsLyrics") private var miniShowsLyrics = true
 
     var body: some View {
         if let track = store.track {
@@ -87,6 +88,7 @@ private struct MenuBarMenu: View {
         Button("Show Peace", action: miniPlayer.showMainWindow)
         Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
         Toggle("Keep Mini Player Expanded", isOn: Binding(get: { miniPlayer.isPinned }, set: { _ in miniPlayer.togglePinned() }))
+        Toggle("Lyrics in Mini Player", isOn: $miniShowsLyrics)
         Divider()
         Button("Quit Peace") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
