@@ -54,7 +54,7 @@ struct ConstellationView: View {
             guard !line.isInterlude else { return nil }
             let end = index + 1 < lines.count ? lines[index + 1].time : line.time + 6
             let words = line.words ?? Self.spread(line, until: end)
-            return VocalTrace.Line(id: line.id, words: words.map(Self.syllableTimes), end: end)
+            return VocalTrace.Line(id: line.id, words: words.map(Self.sung), end: end)
         }
         return VocalTrace(lines: recent, position: position)
     }
@@ -67,10 +67,13 @@ struct ConstellationView: View {
     }
 
     // Splits a word's sung time evenly across its syllables.
-    private static func syllableTimes(_ word: LyricWord) -> [Double] {
+    private static func sung(_ word: LyricWord) -> SungWord {
         let count = syllables(in: word.text)
         let duration = max(word.duration, 0.12 * Double(count))
-        return (0..<count).map { word.time + duration * Double($0) / Double(count) }
+        return SungWord(
+            syllables: (0..<count).map { word.time + duration * Double($0) / Double(count) },
+            end: word.time + duration
+        )
     }
 
     // Vowel groups for Latin text, one per character otherwise (CJK, kana).
@@ -92,8 +95,8 @@ struct ConstellationView: View {
 struct VocalTrace {
     struct Line {
         let id: Int
-        // Each word's syllable start times; every word draws one line between stars.
-        let words: [[Double]]
+        // Every word draws one line between stars.
+        let words: [SungWord]
         // When the next line starts, so this one can fade out.
         let end: Double
     }
@@ -102,13 +105,35 @@ struct VocalTrace {
     var position: Double
 }
 
+struct SungWord {
+    // When each syllable starts, and when the word is let go.
+    var syllables: [Double]
+    var end: Double
+
+    // How far along its line the word has got. Each syllable carries it an equal share,
+    // easing out so a held syllable keeps creeping toward the star until it ends.
+    func progress(at now: Double) -> Double {
+        guard let first = syllables.first, now >= first else { return 0 }
+        guard now < end else { return 1 }
+        let bounds = syllables + [end]
+        let index = (0..<syllables.count).last { bounds[$0] <= now } ?? 0
+        let length = max(bounds[index + 1] - bounds[index], 0.001)
+        let local = min((now - bounds[index]) / length, 1)
+        return (Double(index) + 1 - pow(1 - local, 2.2)) / Double(syllables.count)
+    }
+
+    // The start of the syllable being sung.
+    func latest(at now: Double) -> Double? {
+        syllables.last { $0 <= now }
+    }
+}
+
 private final class ConstellationMotion {
     private static let starCount = 280
     // The first stars are the brighter ones that form the background constellations.
     private static let nodeCount = 64
     private static let linksPerNode = 2
     private static let meteorLifetime = 0.9
-    private static let syllableSeconds = 0.09
     private static let lineFade = 2.5
     private static let voiceFade = 4.0
 
@@ -270,8 +295,17 @@ private final class ConstellationMotion {
                 chains[line.id] = Self.chain(length: line.words.count + 1, seed: Double(line.id), points: points, open: open, span: span, avoiding: taken)
             }
             guard let stars = chains[line.id] else { continue }
-            let ages = line.words.map { $0.map { vocals.position - $0 } }
-            Self.trace(in: &graphics, stars: stars, ages: ages, fade: fade, points: points, color: color(line.id), isMono: isMono)
+            Self.trace(
+                in: &graphics,
+                stars: stars,
+                words: line.words,
+                start: line.words.first?.syllables.first ?? line.end,
+                now: vocals.position,
+                fade: fade,
+                points: points,
+                color: color(line.id),
+                isMono: isMono
+            )
         }
     }
 
@@ -301,29 +335,41 @@ private final class ConstellationMotion {
         voiceChain.removeAll { date.timeIntervalSince($0.date) > Self.voiceFade }
         guard !voiceChain.isEmpty else { return }
         let fade = max(1 - date.timeIntervalSince(voiceChain.last!.date) / Self.voiceFade, 0)
-        // The first hit only lights a star; each later one draws a line to its star.
-        let ages = voiceChain.dropFirst().map { [date.timeIntervalSince($0.date)] }
-        Self.trace(in: &graphics, stars: voiceChain.map(\.star), ages: ages, fade: fade, points: points, color: color(1), isMono: isMono)
+        // The first hit only lights a star; each later one draws a short line to its star.
+        let words = voiceChain.dropFirst().map { hit in
+            SungWord(syllables: [hit.date.timeIntervalSinceReferenceDate], end: hit.date.timeIntervalSinceReferenceDate + 0.15)
+        }
+        Self.trace(
+            in: &graphics,
+            stars: voiceChain.map(\.star),
+            words: words,
+            start: voiceChain[0].date.timeIntervalSinceReferenceDate,
+            now: date.timeIntervalSinceReferenceDate,
+            fade: fade,
+            points: points,
+            color: color(1),
+            isMono: isMono
+        )
     }
 
-    // Draws a chain of stars. Each word grows one line, stepping forward on every syllable,
-    // and the tip flares as each syllable lands.
+    // Draws a chain of stars. Each word grows one line across the time it's sung, stepping
+    // forward on every syllable, and the tip flares as each syllable lands.
     private static func trace(
         in graphics: inout GraphicsContext,
         stars: [Int],
-        ages: [[Double]],
+        words: [SungWord],
+        start: Double,
+        now: Double,
         fade: Double,
         points: [CGPoint],
         color: Color,
         isMono: Bool
     ) {
-        guard let first = ages.first?.first, first >= 0 else { return }
-        star(in: &graphics, at: points[stars[0]], age: first, fade: fade, color: color, isMono: isMono)
-        for (index, syllables) in ages.enumerated() where index + 1 < stars.count {
-            guard let start = syllables.first, start >= 0 else { break }
-            let progress = syllables
-                .map { 1 - pow(1 - min(max($0 / syllableSeconds, 0), 1), 3) }
-                .reduce(0, +) / Double(syllables.count)
+        guard now >= start else { return }
+        star(in: &graphics, at: points[stars[0]], age: now - start, fade: fade, color: color, isMono: isMono)
+        for (index, word) in words.enumerated() where index + 1 < stars.count {
+            guard let latest = word.latest(at: now) else { break }
+            let progress = word.progress(at: now)
             let from = points[stars[index]]
             let target = points[stars[index + 1]]
             let tip = CGPoint(x: from.x + (target.x - from.x) * progress, y: from.y + (target.y - from.y) * progress)
@@ -333,11 +379,10 @@ private final class ConstellationMotion {
             graphics.stroke(segment, with: .color(color.opacity(0.18 * fade)), style: StrokeStyle(lineWidth: 6, lineCap: .round))
             graphics.stroke(segment, with: .color(color.opacity(0.9 * fade)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
 
-            let latest = syllables.filter { $0 >= 0 }.min() ?? 0
-            if progress >= 0.999 {
-                star(in: &graphics, at: target, age: latest, fade: fade, color: color, isMono: isMono)
+            if progress >= 1 {
+                star(in: &graphics, at: target, age: now - word.end, fade: fade, color: color, isMono: isMono)
             } else {
-                let flare = exp(-latest / 0.15)
+                let flare = exp(-(now - latest) / 0.15)
                 graphics.fill(dot(tip, 2 + flare * 6, isMono), with: .color(color.opacity((0.3 + flare * 0.6) * fade)))
             }
         }
