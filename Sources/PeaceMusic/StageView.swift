@@ -5,6 +5,7 @@ struct StageView: View {
     let chromeVisible: Bool
 
     @Environment(PlayerStore.self) private var store
+    @Environment(\.lyricFont) private var lyricFont
 
     var body: some View {
         ZStack {
@@ -15,8 +16,8 @@ struct StageView: View {
             VStack(spacing: 14) {
                 GeometryReader { geometry in
                     let content = content
-                    StagePoster(content: content, size: geometry.size)
-                        .id(content.key)
+                    StagePoster(content: content, size: geometry.size, lyricFont: lyricFont)
+                        .id("\(content.key)-\(lyricFont.rawValue)")
                         .transition(.asymmetric(
                             insertion: .scale(scale: 1.05).combined(with: .opacity)
                                 .animation(.spring(response: 0.3, dampingFraction: 0.86).delay(0.07)),
@@ -61,10 +62,10 @@ private struct StagePoster: View {
 
     @Environment(PlayerStore.self) private var store
 
-    init(content: StageContent, size: CGSize) {
+    init(content: StageContent, size: CGSize, lyricFont: LyricFont) {
         self.content = content
         self.size = size
-        layout = StageLayout(text: content.text, size: size)
+        layout = StageLayout(text: content.text, size: size, lyricFont: lyricFont)
     }
 
     var body: some View {
@@ -117,7 +118,7 @@ private struct StagePoster: View {
         let reveal = revealAmount(of: word, position: position)
         let eased = 1 - pow(1 - reveal, 3)
         return Text(word.text)
-            .font(Font(StageLayout.font(size: fontSize)))
+            .font(Font(layout.font(size: fontSize)))
             .lineLimit(1)
             .fixedSize()
             .opacity(0.13 + 0.87 * eased)
@@ -147,18 +148,24 @@ private struct StageLayout {
     private static let maxRows = 6
 
     let rows: [StageRow]
+    private let lyricFont: LyricFont
 
-    static func font(size: CGFloat) -> NSFont {
-        NSFont.systemFont(ofSize: size, weight: .black, width: .compressed)
+    func font(size: CGFloat) -> NSFont {
+        Self.font(size: size, lyricFont: lyricFont)
     }
 
-    init(text: String, size: CGSize) {
+    private static func font(size: CGFloat, lyricFont: LyricFont) -> NSFont {
+        lyricFont.nsFont(size, weight: .black) ?? NSFont.systemFont(ofSize: size, weight: .black, width: .compressed)
+    }
+
+    init(text: String, size: CGSize, lyricFont: LyricFont) {
+        self.lyricFont = lyricFont
         let words = text.uppercased().split(whereSeparator: \.isWhitespace).map(String.init)
         guard !words.isEmpty, size.width > 0, size.height > 0 else {
             rows = []
             return
         }
-        let referenceFont = Self.font(size: 100)
+        let referenceFont = Self.font(size: 100, lyricFont: lyricFont)
         let widths = words.map { ($0 as NSString).size(withAttributes: [.font: referenceFont]).width }
 
         var best: (score: CGFloat, groups: [Range<Int>], scale: CGFloat) = (-1, [], 1)
@@ -212,7 +219,7 @@ private struct StageLayout {
     }
 }
 
-private struct StageFooter: View {
+struct StageFooter: View {
     @Environment(\.uiTheme) private var theme
     let chromeVisible: Bool
 

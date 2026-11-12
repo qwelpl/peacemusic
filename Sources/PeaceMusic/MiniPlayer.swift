@@ -33,8 +33,11 @@ final class MiniPlayerController {
     private(set) var corner = MiniPlayerCorner()
     // Pinned keeps the hover layout up after the pointer leaves.
     private(set) var isPinned = UserDefaults.standard.bool(forKey: pinnedKey)
+    // Off keeps the mini player on the Space it was opened in.
+    private(set) var isOnAllSpaces = UserDefaults.standard.object(forKey: allSpacesKey) as? Bool ?? true
 
     private static let pinnedKey = "miniPlayerPinned"
+    private static let allSpacesKey = "miniPlayerAllSpaces"
 
     private let store: PlayerStore
     private let analyzer: MusicAnalyzer
@@ -97,6 +100,19 @@ final class MiniPlayerController {
         if isPinned { setExpanded(true) }
     }
 
+    func toggleAllSpaces() {
+        isOnAllSpaces.toggle()
+        UserDefaults.standard.set(isOnAllSpaces, forKey: Self.allSpacesKey)
+        if let panel { applySpaces(to: panel) }
+    }
+
+    private func applySpaces(to panel: NSPanel) {
+        panel.level = isOnAllSpaces ? .popUpMenu : .floating
+        panel.collectionBehavior = isOnAllSpaces
+            ? [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+            : [.ignoresCycle]
+    }
+
     fileprivate func pointerEntered() {
         setExpanded(true)
     }
@@ -135,8 +151,7 @@ final class MiniPlayerController {
         )
         // Resets the level, so set it first.
         panel.isFloatingPanel = true
-        panel.level = .popUpMenu
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        applySpaces(to: panel)
         panel.hidesOnDeactivate = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -162,6 +177,17 @@ final class MiniPlayerController {
         panel.setContentSize(Self.panelSize)
         place(panel)
         return panel
+    }
+
+    // Keeps the same corner on the new display.
+    func move(to screen: NSScreen) {
+        guard let panel, panel.screen != screen else { return }
+        let area = screen.visibleFrame
+        panel.setFrameOrigin(NSPoint(
+            x: corner.isLeading ? area.minX - Self.margin : area.maxX + Self.margin - panel.frame.width,
+            y: corner.isTop ? area.maxY + Self.margin - panel.frame.height : area.minY - Self.margin
+        ))
+        settle(panel, animated: false)
     }
 
     private func place(_ panel: NSPanel) {
@@ -259,6 +285,7 @@ private struct MiniPlayerView: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @AppStorage("uiTheme") private var themeRaw = UITheme.glass.rawValue
+    @AppStorage(LyricSettings.fontKey) private var lyricFontRaw = LyricFont.theme.rawValue
 
     private var theme: UITheme { UITheme(rawValue: themeRaw) ?? .glass }
     private var shape: RoundedRectangle {
@@ -274,6 +301,7 @@ private struct MiniPlayerView: View {
             }
         }
         .environment(\.uiTheme, theme)
+        .environment(\.lyricFont, LyricFont(rawValue: lyricFontRaw) ?? .theme)
         .preferredColorScheme(.dark)
     }
 
@@ -309,6 +337,7 @@ private struct MiniPlayerView: View {
 private struct CompactMini: View {
     @Environment(PlayerStore.self) private var store
     @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
 
     var body: some View {
         HStack(spacing: 11) {
@@ -318,7 +347,7 @@ private struct CompactMini: View {
                     .font(theme.font(13, .heavy))
                     .foregroundStyle(.white)
                 MiniLyricLine(fallback: store.track?.artist ?? "")
-                    .font(theme.font(11, .medium))
+                    .font(lyricFont.font(11, .medium, theme: theme))
                     .foregroundStyle(.white.opacity(0.72))
             }
             .lineLimit(1)
@@ -336,6 +365,7 @@ private struct ExpandedMini: View {
     @Environment(MiniPlayerController.self) private var miniPlayer
     @Environment(\.uiTheme) private var theme
     @AppStorage("miniShowsLyrics") private var showsLyrics = true
+    @Environment(\.lyricFont) private var lyricFont
 
     var body: some View {
         HStack(spacing: 14) {
@@ -382,7 +412,7 @@ private struct ExpandedMini: View {
                 Spacer(minLength: 2)
                 // Artist already sits under the title, so the album fills this slot.
                 MiniLyricLine(fallback: store.track?.album ?? "")
-                    .font(theme.font(13, .semibold))
+                    .font(lyricFont.font(13, .semibold, theme: theme))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                 Spacer(minLength: 2)

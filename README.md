@@ -9,6 +9,7 @@ Controls Music.app over Apple Events, so no developer token is needed.
 - Turntable: record or cover, mesh background, scrolling lyrics.
 - Stage: current lyric in full-window type, with the art showing through the letters.
 - Halftone: the art as a dot field that reacts to the audio.
+- Orbit: the art ringed by spinning spectrum bars, with bass hits rippling out and a swarm that speeds up with the music.
 
 ## Menu bar
 
@@ -52,7 +53,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 | --- | --- |
 | Space | Play / pause |
 | Left / Right | Previous / next |
-| M | Switch mode (Turntable / Stage / Halftone) |
+| M | Switch mode (Turntable / Stage / Halftone / Orbit) |
 | T | Switch theme (Liquid Glass / Mono) |
 | L | Show or hide lyrics (Turntable) |
 | V | Switch between vinyl and cover (Turntable) |
@@ -63,7 +64,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 
 ## Audio
 
-Halftone and the mini player tap Music's audio with a Core Audio process tap, which needs System Audio Recording permission. Audio is analyzed locally and never recorded or sent anywhere. Without permission, Halftone follows the lyric timing instead.
+Halftone, Orbit and the mini player tap Music's audio with a Core Audio process tap, which needs System Audio Recording permission. Audio is analyzed locally and never recorded or sent anywhere. Without permission, Halftone and Orbit follow the lyric timing instead.
 
 `open build/Peace.app --args --demo-instrumental` uses a generated drum loop.
 

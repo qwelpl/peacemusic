@@ -345,16 +345,18 @@ private struct HalftoneHeader: View {
 
 private struct HalftoneCaption: View {
     @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
+    @Environment(\.lyricScale) private var scale
     @Environment(PlayerStore.self) private var store
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             current
-                .font(theme.font(36, .bold))
+                .font(lyricFont.font(36 * scale, .bold, theme: theme))
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
             Text(nextText)
-                .font(theme.font(14))
+                .font(lyricFont.font(14 * scale, .medium, theme: theme))
                 .foregroundStyle(.white.opacity(0.5))
                 .lineLimit(1)
         }
