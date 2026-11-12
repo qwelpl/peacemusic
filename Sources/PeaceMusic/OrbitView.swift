@@ -19,7 +19,7 @@ struct OrbitView: View {
             VStack(spacing: 14) {
                 GeometryReader { geometry in
                     TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !store.isPlaying)) { context in
-                        let pulse = pulse(at: context.date)
+                        let pulse = OrbitPulse(store: store, audio: analyzer.reading, at: context.date)
                         let radius = min(geometry.size.width, geometry.size.height) * 0.17
                         ZStack {
                             Canvas { graphics, size in
@@ -29,7 +29,7 @@ struct OrbitView: View {
                                     radius: radius,
                                     pulse: pulse,
                                     date: context.date,
-                                    colors: accents,
+                                    colors: store.accentColors,
                                     isMono: theme == .mono
                                 )
                             }
@@ -37,7 +37,7 @@ struct OrbitView: View {
                                 .frame(width: radius * 1.7, height: radius * 1.7)
                                 .clipShape(.circle)
                                 .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
-                                .shadow(color: (accents.first ?? .white).opacity(0.35 + pulse.bass * 0.4), radius: 20 + pulse.bass * 30)
+                                .shadow(color: (store.accentColors.first ?? .white).opacity(0.35 + pulse.bass * 0.4), radius: 20 + pulse.bass * 30)
                                 .scaleEffect(1 + pulse.bass * 0.07)
                         }
                     }
@@ -52,27 +52,28 @@ struct OrbitView: View {
         }
         .listensToMusic()
     }
+}
 
-    // The three most colourful parts of the art, brightened to read on black.
-    private var accents: [Color] {
-        let colors = store.meshColors
-            .compactMap { NSColor($0).usingColorSpace(.sRGB) }
-            .sorted { $0.saturationComponent > $1.saturationComponent }
-            .prefix(3)
-            .map { Color(hue: $0.hueComponent, saturation: min($0.saturationComponent * 1.1, 0.85), brightness: 1) }
-        return colors.isEmpty ? [.white] : colors
-    }
+struct OrbitPulse {
+    var bass: Double
+    var mid: Double
+    var spectrum: [Float]
+    // Seconds since each recent bass hit.
+    var hits: [Double]
+}
 
+extension OrbitPulse {
     // Without an audio tap, fake the beat from the lyric word timings.
-    private func pulse(at date: Date) -> OrbitPulse {
-        let audio = analyzer.reading
+    @MainActor
+    init(store: PlayerStore, audio: MusicAnalyzer.Reading, at date: Date) {
         if audio.hasSignal {
-            return OrbitPulse(
+            self.init(
                 bass: audio.bass,
                 mid: audio.mid,
                 spectrum: audio.spectrum,
                 hits: audio.onsets.filter(\.isBass).map { date.timeIntervalSince($0.date) }
             )
+            return
         }
         let position = store.lyricPosition(at: date)
         var hits: [Double] = []
@@ -85,16 +86,20 @@ struct OrbitView: View {
         let spectrum = (0..<SpectrumAnalyzer.bandCount).map { band in
             Float(beat * (0.35 + 0.3 * sin(Double(band) * 0.9 + position * 3)))
         }
-        return OrbitPulse(bass: beat, mid: beat * 0.6, spectrum: spectrum, hits: hits)
+        self.init(bass: beat, mid: beat * 0.6, spectrum: spectrum, hits: hits)
     }
 }
 
-struct OrbitPulse {
-    var bass: Double
-    var mid: Double
-    var spectrum: [Float]
-    // Seconds since each recent bass hit.
-    var hits: [Double]
+extension PlayerStore {
+    // The three most colourful parts of the art, brightened to read on black.
+    var accentColors: [Color] {
+        let colors = meshColors
+            .compactMap { NSColor($0).usingColorSpace(.sRGB) }
+            .sorted { $0.saturationComponent > $1.saturationComponent }
+            .prefix(3)
+            .map { Color(hue: $0.hueComponent, saturation: min($0.saturationComponent * 1.1, 0.85), brightness: 1) }
+        return colors.isEmpty ? [.white] : colors
+    }
 }
 
 private final class OrbitMotion {

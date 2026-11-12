@@ -10,6 +10,7 @@ Controls Music.app over Apple Events, so no developer token is needed.
 - Stage: current lyric in full-window type, with the art showing through the letters.
 - Halftone: the art as a dot field that reacts to the audio.
 - Orbit: the art ringed by spinning spectrum bars, with bass hits rippling out and a swarm that speeds up with the music.
+- Constellation: a turning night sky with no lyrics. Stars twinkle with the spectrum, the sky swells gently on the bass, and the vocals draw new constellations syllable by syllable. Track info and controls sit in the bottom corner.
 
 ## Menu bar
 
@@ -53,7 +54,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 | --- | --- |
 | Space | Play / pause |
 | Left / Right | Previous / next |
-| M | Switch mode (Turntable / Stage / Halftone / Orbit) |
+| M | Switch mode (Turntable / Stage / Halftone / Orbit / Constellation) |
 | T | Switch theme (Liquid Glass / Mono) |
 | L | Show or hide lyrics (Turntable) |
 | V | Switch between vinyl and cover (Turntable) |
@@ -64,7 +65,7 @@ The app lands in `build/Peace.app`. On first launch, allow Peace to control Musi
 
 ## Audio
 
-Halftone, Orbit and the mini player tap Music's audio with a Core Audio process tap, which needs System Audio Recording permission. Audio is analyzed locally and never recorded or sent anywhere. Without permission, Halftone and Orbit follow the lyric timing instead.
+Halftone, Orbit, Constellation and the mini player tap Music's audio with a Core Audio process tap, which needs System Audio Recording permission. Audio is analyzed locally and never recorded or sent anywhere. Without permission, Halftone, Orbit and Constellation follow the lyric timing instead.
 
 `open build/Peace.app --args --demo-instrumental` uses a generated drum loop.
 
