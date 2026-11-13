@@ -120,6 +120,7 @@ enum YRCParser {
 
 final class LyricsClient: @unchecked Sendable {
     private struct LRCLIBItem: Decodable {
+        let id: Int?
         let trackName: String?
         let artistName: String?
         let duration: Double?
@@ -215,7 +216,13 @@ final class LyricsClient: @unchecked Sendable {
         let netEase = await netEaseResult
         let allSourcesAnswered = lrclib != nil && netEase != nil
 
-        let candidates = lrclib ?? []
+        var candidates = lrclib ?? []
+        // A featured version can have its own verses, while LRCLIB often files the solo
+        // lyrics under it too. Keep only entries that credit the feature when there are any.
+        if let featured = Self.featuredArtist(track.title) {
+            let credited = candidates.filter { Self.normalized("\($0.trackName ?? "") \($0.artistName ?? "")").contains(featured) }
+            if !credited.isEmpty { candidates = credited }
+        }
         let close = candidates.filter { abs(($0.duration ?? 0) - track.duration) <= Self.durationTolerance }
         let synced = close.compactMap(\.syncedLyrics).filter { !$0.isEmpty }
         let parsed = synced.map { LRCParser.parse($0, duration: track.duration) }
@@ -301,6 +308,13 @@ final class LyricsClient: @unchecked Sendable {
         text.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
+    /// "I GOT YOU (feat. Lauv)" → "lauv".
+    private static func featuredArtist(_ title: String) -> String? {
+        guard let match = title.firstMatch(of: #/[\(\[](?:feat|ft|with)\.?\s([^\)\]]+)[\)\]]/#.ignoresCase()) else { return nil }
+        let name = normalized(String(match.1))
+        return name.isEmpty ? nil : name
+    }
+
     private static func isSameSong(candidate: String, track: Track) -> Bool {
         let variants = ["remix", "mix", "edit", "club", "dub", "live", "cover", "instrumental", "karaoke", "acoustic", "伴奏"]
         let lowerCandidate = candidate.lowercased()
@@ -337,12 +351,20 @@ final class LyricsClient: @unchecked Sendable {
 
     /// nil = request failed.
     private func lrclibCandidates(_ track: Track) async -> [LRCLIBItem]? {
-        var search = URLComponents(string: "https://lrclib.net/api/search")!
-        search.queryItems = [
-            .init(name: "track_name", value: Self.cleanTitle(track.title)),
-            .init(name: "artist_name", value: track.artist),
-        ]
-        return await fetch(search.url!)
+        // The cleaned title alone can miss a featured version, so search the full title too.
+        let titles = Array(Set([Self.cleanTitle(track.title), track.title]))
+        var results: [LRCLIBItem]?
+        for title in titles {
+            var search = URLComponents(string: "https://lrclib.net/api/search")!
+            search.queryItems = [
+                .init(name: "track_name", value: title),
+                .init(name: "artist_name", value: track.artist),
+            ]
+            guard let items: [LRCLIBItem] = await fetch(search.url!) else { continue }
+            let seen = Set((results ?? []).compactMap(\.id))
+            results = (results ?? []) + items.filter { $0.id.map { !seen.contains($0) } ?? true }
+        }
+        return results
     }
 
     /// nil = request failed, empty = no match.
