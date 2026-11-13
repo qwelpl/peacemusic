@@ -617,37 +617,19 @@ private struct MiniProgress: View {
 
 // MARK: Sleeve
 
-// The cover blurred behind everything, breathing with the bass.
+// Flat black with a faint wash of the cover's color, so the cover stays the focus.
 private struct SleeveBackdrop: View {
     @Environment(PlayerStore.self) private var store
-    @Environment(\.musicAnalyzer) private var analyzer
-    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
-    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
 
     var body: some View {
         ZStack {
-            Color.black
-            // Overlay keeps the filled cover from widening the layout.
-            Color.clear.overlay {
-                ArtworkImage(image: store.artwork)
-                    .blur(radius: 28)
-                    .saturation(1.4)
-                    .opacity(0.75)
-            }
-            .clipped()
-            TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { _ in
-                let bass = analyzer.reading.bass
-                RadialGradient(
-                    colors: [(store.accentColors.first ?? .white).opacity(0.18 + Double(bass) * 0.25), .clear],
-                    center: .leading, startRadius: 0, endRadius: 260
-                )
-                .blendMode(.plusLighter)
-            }
+            Color(white: 0.06)
             LinearGradient(
-                colors: [.black.opacity(0.25), .black.opacity(0.6)],
-                startPoint: .top, endPoint: .bottom
+                colors: [(store.accentColors.first ?? .white).opacity(0.22), .clear],
+                startPoint: .leading, endPoint: .trailing
             )
         }
+        .animation(.easeOut(duration: 0.6), value: store.accentColors.first)
     }
 }
 
@@ -660,54 +642,69 @@ private struct SleeveCover: View {
     var body: some View {
         ArtworkImage(image: store.artwork)
             .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: theme.cornerRadius(size * 0.14), style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: theme.cornerRadius(size * 0.14), style: .continuous)
-                    .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.45), radius: 8, y: 3)
+            .clipShape(RoundedRectangle(cornerRadius: theme.cornerRadius(size * 0.12), style: .continuous))
+            .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
     }
 }
 
-// Spectrum bars that double as the progress bar: played bars are bright, the rest dim.
-private struct SleeveWave: View {
-    @Environment(PlayerStore.self) private var store
-    @Environment(\.musicAnalyzer) private var analyzer
-    @Environment(\.uiTheme) private var theme
-    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
-    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
+private struct SleeveProgress: View {
+    var showsTime = true
 
-    var barCount = 36
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.uiTheme) private var theme
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { context in
-            let spectrum = analyzer.reading.spectrum
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
             let duration = store.track?.duration ?? 0
-            let progress = duration > 0 ? min(store.position(at: context.date) / duration, 1) : 0
-            Canvas { canvas, size in
-                let gap: CGFloat = 2
-                let width = max((size.width - gap * CGFloat(barCount - 1)) / CGFloat(barCount), 1)
-                for bar in 0..<barCount {
-                    // Mirror the bands so the lows sit in the middle.
-                    let spot = abs(Double(bar) - Double(barCount - 1) / 2) / (Double(barCount) / 2)
-                    let band = spectrum.isEmpty ? 0 : min(Int(spot * Double(spectrum.count)), spectrum.count - 1)
-                    let value = spectrum.isEmpty ? 0 : CGFloat(spectrum[band])
-                    let height = max(size.height * (0.12 + value * 0.88), width)
-                    let rect = CGRect(
-                        x: CGFloat(bar) * (width + gap),
-                        y: (size.height - height) / 2,
-                        width: width,
-                        height: height
-                    )
-                    let played = (Double(bar) + 0.5) / Double(barCount) <= progress
-                    canvas.fill(
-                        Path(roundedRect: rect, cornerRadius: theme.cornerRadius(width / 2)),
-                        with: .color(.white.opacity(played ? 0.95 : 0.3))
-                    )
+            let position = store.position(at: context.date)
+            let progress = duration > 0 ? min(position / duration, 1) : 0
+            VStack(spacing: 4) {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.18))
+                        Capsule().fill(.white).frame(width: geometry.size.width * progress)
+                    }
+                }
+                .frame(height: 3)
+                if showsTime {
+                    HStack {
+                        Text(Self.format(position))
+                        Spacer()
+                        Text("-" + Self.format(max(duration - position, 0)))
+                    }
+                    .font(theme.font(10, .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.5))
                 }
             }
         }
         .allowsHitTesting(false)
+    }
+
+    private static func format(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded(.down))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+private struct SleeveIcon: View {
+    let symbol: String
+    var size: CGFloat = 13
+    var isOn = true
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size, weight: .semibold))
+                .frame(width: size * 2, height: size * 2)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(isHovering ? 1 : isOn ? 0.85 : 0.4))
+        .onHover { isHovering = $0 }
     }
 }
 
@@ -717,24 +714,20 @@ private struct SleeveCompact: View {
     @Environment(\.lyricFont) private var lyricFont
 
     var body: some View {
-        HStack(spacing: 11) {
-            SleeveCover(size: 52)
-            VStack(alignment: .leading, spacing: 4) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(store.track?.title ?? "Nothing playing")
-                        .font(theme.font(13, .heavy))
-                        .foregroundStyle(.white)
-                    MiniLyricLine(fallback: store.track?.artist ?? "")
-                        .font(lyricFont.font(11, .medium, theme: theme))
-                        .foregroundStyle(.white.opacity(0.75))
-                }
-                .lineLimit(1)
-                SleeveWave(barCount: 28)
-                    .frame(height: 10)
+        HStack(spacing: 12) {
+            SleeveCover(size: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(store.track?.title ?? "Nothing playing")
+                    .font(theme.font(13, .bold))
+                    .foregroundStyle(.white)
+                MiniLyricLine(fallback: store.track?.artist ?? "")
+                    .font(lyricFont.font(11, .medium, theme: theme))
+                    .foregroundStyle(.white.opacity(0.6))
             }
+            .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -746,77 +739,44 @@ private struct SleeveExpanded: View {
     @AppStorage("miniShowsLyrics") private var showsLyrics = true
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 16) {
             SleeveCover(size: 128)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .top, spacing: 6) {
-                    VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(store.track?.title ?? "Nothing playing")
-                            .font(theme.font(15, .heavy))
+                            .font(theme.font(15, .bold))
                             .foregroundStyle(.white)
-                        Text(store.track?.artist ?? "")
-                            .font(theme.font(12))
-                            .foregroundStyle(.white.opacity(0.75))
+                        MiniLyricLine(fallback: store.track?.artist ?? "")
+                            .font(lyricFont.font(12, .medium, theme: theme))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
                     .lineLimit(1)
-                    Spacer(minLength: 0)
-                    PlayerButton(
-                        symbol: miniPlayer.isPinned ? "pin.fill" : "pin",
-                        title: "PIN",
-                        diameter: 24,
-                        iconSize: 9,
-                        isOn: miniPlayer.isPinned,
-                        action: miniPlayer.togglePinned
-                    )
-                    .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
-                    PlayerButton(
-                        symbol: "quote.bubble",
-                        title: "LRC",
-                        diameter: 24,
-                        iconSize: 9,
-                        isOn: showsLyrics,
-                        action: { showsLyrics.toggle() }
-                    )
-                    .help(showsLyrics ? "Hide lyrics" : "Show lyrics")
-                    PlayerButton(
-                        symbol: "arrow.up.left.and.arrow.down.right",
-                        title: "OPEN",
-                        diameter: 24,
-                        iconSize: 9,
-                        action: miniPlayer.close
-                    )
-                    .help("Back to the full player")
+                    Spacer(minLength: 6)
+                    HStack(spacing: 0) {
+                        SleeveIcon(symbol: miniPlayer.isPinned ? "pin.fill" : "pin", size: 10, isOn: miniPlayer.isPinned, action: miniPlayer.togglePinned)
+                            .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
+                        SleeveIcon(symbol: "quote.bubble", size: 10, isOn: showsLyrics) { showsLyrics.toggle() }
+                            .help(showsLyrics ? "Hide lyrics" : "Show lyrics")
+                        SleeveIcon(symbol: "arrow.up.left.and.arrow.down.right", size: 10, isOn: false, action: miniPlayer.close)
+                            .help("Back to the full player")
+                    }
+                    .offset(x: 6, y: -4)
                 }
                 Spacer(minLength: 0)
-                MiniLyricLine(fallback: store.track?.album ?? "")
-                    .font(lyricFont.font(13, .semibold, theme: theme))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                SleeveWave()
-                    .frame(height: 18)
-                HStack(spacing: 4) {
-                    Spacer(minLength: 0)
-                    GlassEffectContainer(spacing: 6) {
-                        HStack(spacing: 4) {
-                            PlayerButton(symbol: "backward.fill", title: "|<", diameter: 28, iconSize: 10, action: store.previous)
-                            PlayerButton(
-                                symbol: store.isPlaying ? "pause.fill" : "play.fill",
-                                title: store.isPlaying ? "||" : ">",
-                                diameter: 32,
-                                iconSize: 12,
-                                monoWidth: 38,
-                                action: store.togglePlayPause
-                            )
-                            PlayerButton(symbol: "forward.fill", title: ">|", diameter: 28, iconSize: 10, action: store.next)
-                        }
-                    }
-                    Spacer(minLength: 0)
+                SleeveProgress()
+                HStack(spacing: 18) {
+                    SleeveIcon(symbol: "backward.fill", size: 13, action: store.previous)
+                    SleeveIcon(symbol: store.isPlaying ? "pause.fill" : "play.fill", size: 18, action: store.togglePlayPause)
+                    SleeveIcon(symbol: "forward.fill", size: 13, action: store.next)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .padding(.leading, 14)
-        .padding(.trailing, 16)
-        .padding(.vertical, 12)
+        .padding(.trailing, 18)
+        .padding(.vertical, 14)
     }
 }
