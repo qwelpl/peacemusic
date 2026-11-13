@@ -85,6 +85,7 @@ private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
     @AppStorage("miniShowsLyrics") private var miniShowsLyrics = true
+    @AppStorage(MiniStyle.key) private var miniStyleRaw = MiniStyle.disc.rawValue
     @Environment(DisplayPicker.self) private var displays
     @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.classic.rawValue
     @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
@@ -116,6 +117,9 @@ private struct MenuBarMenu: View {
         Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
         Toggle("Keep Mini Player Expanded", isOn: Binding(get: { miniPlayer.isPinned }, set: { _ in miniPlayer.togglePinned() }))
         Toggle("Lyrics in Mini Player", isOn: $miniShowsLyrics)
+        Picker("Mini Player Style", selection: $miniStyleRaw) {
+            ForEach(MiniStyle.allCases) { Text($0.title).tag($0.rawValue) }
+        }
         Toggle("Keep Screen Awake", isOn: $keepsScreenAwake)
         Toggle("Show Mini Player on All Spaces", isOn: Binding(get: { miniPlayer.isOnAllSpaces }, set: { _ in miniPlayer.toggleAllSpaces() }))
         Divider()

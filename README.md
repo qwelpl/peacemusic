@@ -20,6 +20,8 @@ Peace runs from the menu bar, with no Dock icon. The menu has playback controls,
 
 Floats above other windows, on every Space and over full screen apps. Hover to expand, drag to move. It shrinks toward the nearest screen corner. `OPEN` or the menu bar icon returns to the full player.
 
+Mini Player Style in the menu picks Disc (a spinning record with a spectrum ring) or Sleeve (the cover over its own blurred art, with spectrum bars that fill in as the song plays).
+
 ## Themes
 
 Liquid Glass or Mono, in every mode.

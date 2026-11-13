@@ -2,6 +2,20 @@ import AppKit
 import Observation
 import SwiftUI
 
+enum MiniStyle: String, CaseIterable, Identifiable {
+    case disc, sleeve
+
+    static let key = "miniStyle"
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .disc: "Disc"
+        case .sleeve: "Sleeve"
+        }
+    }
+}
+
 struct MiniPlayerCorner: Equatable {
     var isLeading = false
     var isTop = true
@@ -286,8 +300,10 @@ private struct MiniPlayerView: View {
     @Environment(MiniPlayerController.self) private var miniPlayer
     @AppStorage("uiTheme") private var themeRaw = UITheme.glass.rawValue
     @AppStorage(LyricSettings.fontKey) private var lyricFontRaw = LyricFont.theme.rawValue
+    @AppStorage(MiniStyle.key) private var styleRaw = MiniStyle.disc.rawValue
 
     private var theme: UITheme { UITheme(rawValue: themeRaw) ?? .glass }
+    private var style: MiniStyle { MiniStyle(rawValue: styleRaw) ?? .disc }
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: theme.cornerRadius(miniPlayer.isExpanded ? 30 : 36), style: .continuous)
     }
@@ -307,18 +323,27 @@ private struct MiniPlayerView: View {
 
     private var content: some View {
         ZStack {
-            Color.black
-            HalftoneField(minimumPitch: 7)
-                .opacity(theme == .glass ? 0.62 : 0.38)
-            LinearGradient(
-                colors: [.black.opacity(0.62), .black.opacity(0.12)],
-                startPoint: .leading, endPoint: .trailing
-            )
-
-            if miniPlayer.isExpanded {
-                ExpandedMini().transition(.opacity.combined(with: .scale(scale: 0.96)))
-            } else {
-                CompactMini().transition(.opacity)
+            switch style {
+            case .disc:
+                Color.black
+                HalftoneField(minimumPitch: 7)
+                    .opacity(theme == .glass ? 0.62 : 0.38)
+                LinearGradient(
+                    colors: [.black.opacity(0.62), .black.opacity(0.12)],
+                    startPoint: .leading, endPoint: .trailing
+                )
+                if miniPlayer.isExpanded {
+                    ExpandedMini().transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    CompactMini().transition(.opacity)
+                }
+            case .sleeve:
+                SleeveBackdrop()
+                if miniPlayer.isExpanded {
+                    SleeveExpanded().transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    SleeveCompact().transition(.opacity)
+                }
             }
         }
         .frame(width: pillSize.width, height: pillSize.height)
@@ -587,5 +612,211 @@ private struct MiniProgress: View {
             .frame(height: 2)
         }
         .allowsHitTesting(false)
+    }
+}
+
+// MARK: Sleeve
+
+// The cover blurred behind everything, breathing with the bass.
+private struct SleeveBackdrop: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.musicAnalyzer) private var analyzer
+    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
+    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
+
+    var body: some View {
+        ZStack {
+            Color.black
+            // Overlay keeps the filled cover from widening the layout.
+            Color.clear.overlay {
+                ArtworkImage(image: store.artwork)
+                    .blur(radius: 28)
+                    .saturation(1.4)
+                    .opacity(0.75)
+            }
+            .clipped()
+            TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { _ in
+                let bass = analyzer.reading.bass
+                RadialGradient(
+                    colors: [(store.accentColors.first ?? .white).opacity(0.18 + Double(bass) * 0.25), .clear],
+                    center: .leading, startRadius: 0, endRadius: 260
+                )
+                .blendMode(.plusLighter)
+            }
+            LinearGradient(
+                colors: [.black.opacity(0.25), .black.opacity(0.6)],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
+    }
+}
+
+private struct SleeveCover: View {
+    let size: CGFloat
+
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.uiTheme) private var theme
+
+    var body: some View {
+        ArtworkImage(image: store.artwork)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: theme.cornerRadius(size * 0.14), style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: theme.cornerRadius(size * 0.14), style: .continuous)
+                    .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.45), radius: 8, y: 3)
+    }
+}
+
+// Spectrum bars that double as the progress bar: played bars are bright, the rest dim.
+private struct SleeveWave: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.musicAnalyzer) private var analyzer
+    @Environment(\.uiTheme) private var theme
+    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
+    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
+
+    var barCount = 36
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { context in
+            let spectrum = analyzer.reading.spectrum
+            let duration = store.track?.duration ?? 0
+            let progress = duration > 0 ? min(store.position(at: context.date) / duration, 1) : 0
+            Canvas { canvas, size in
+                let gap: CGFloat = 2
+                let width = max((size.width - gap * CGFloat(barCount - 1)) / CGFloat(barCount), 1)
+                for bar in 0..<barCount {
+                    // Mirror the bands so the lows sit in the middle.
+                    let spot = abs(Double(bar) - Double(barCount - 1) / 2) / (Double(barCount) / 2)
+                    let band = spectrum.isEmpty ? 0 : min(Int(spot * Double(spectrum.count)), spectrum.count - 1)
+                    let value = spectrum.isEmpty ? 0 : CGFloat(spectrum[band])
+                    let height = max(size.height * (0.12 + value * 0.88), width)
+                    let rect = CGRect(
+                        x: CGFloat(bar) * (width + gap),
+                        y: (size.height - height) / 2,
+                        width: width,
+                        height: height
+                    )
+                    let played = (Double(bar) + 0.5) / Double(barCount) <= progress
+                    canvas.fill(
+                        Path(roundedRect: rect, cornerRadius: theme.cornerRadius(width / 2)),
+                        with: .color(.white.opacity(played ? 0.95 : 0.3))
+                    )
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct SleeveCompact: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
+
+    var body: some View {
+        HStack(spacing: 11) {
+            SleeveCover(size: 52)
+            VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(store.track?.title ?? "Nothing playing")
+                        .font(theme.font(13, .heavy))
+                        .foregroundStyle(.white)
+                    MiniLyricLine(fallback: store.track?.artist ?? "")
+                        .font(lyricFont.font(11, .medium, theme: theme))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                .lineLimit(1)
+                SleeveWave(barCount: 28)
+                    .frame(height: 10)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 10)
+    }
+}
+
+private struct SleeveExpanded: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(MiniPlayerController.self) private var miniPlayer
+    @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
+    @AppStorage("miniShowsLyrics") private var showsLyrics = true
+
+    var body: some View {
+        HStack(spacing: 14) {
+            SleeveCover(size: 128)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .top, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(store.track?.title ?? "Nothing playing")
+                            .font(theme.font(15, .heavy))
+                            .foregroundStyle(.white)
+                        Text(store.track?.artist ?? "")
+                            .font(theme.font(12))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .lineLimit(1)
+                    Spacer(minLength: 0)
+                    PlayerButton(
+                        symbol: miniPlayer.isPinned ? "pin.fill" : "pin",
+                        title: "PIN",
+                        diameter: 24,
+                        iconSize: 9,
+                        isOn: miniPlayer.isPinned,
+                        action: miniPlayer.togglePinned
+                    )
+                    .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
+                    PlayerButton(
+                        symbol: "quote.bubble",
+                        title: "LRC",
+                        diameter: 24,
+                        iconSize: 9,
+                        isOn: showsLyrics,
+                        action: { showsLyrics.toggle() }
+                    )
+                    .help(showsLyrics ? "Hide lyrics" : "Show lyrics")
+                    PlayerButton(
+                        symbol: "arrow.up.left.and.arrow.down.right",
+                        title: "OPEN",
+                        diameter: 24,
+                        iconSize: 9,
+                        action: miniPlayer.close
+                    )
+                    .help("Back to the full player")
+                }
+                Spacer(minLength: 0)
+                MiniLyricLine(fallback: store.track?.album ?? "")
+                    .font(lyricFont.font(13, .semibold, theme: theme))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                SleeveWave()
+                    .frame(height: 18)
+                HStack(spacing: 4) {
+                    Spacer(minLength: 0)
+                    GlassEffectContainer(spacing: 6) {
+                        HStack(spacing: 4) {
+                            PlayerButton(symbol: "backward.fill", title: "|<", diameter: 28, iconSize: 10, action: store.previous)
+                            PlayerButton(
+                                symbol: store.isPlaying ? "pause.fill" : "play.fill",
+                                title: store.isPlaying ? "||" : ">",
+                                diameter: 32,
+                                iconSize: 12,
+                                monoWidth: 38,
+                                action: store.togglePlayPause
+                            )
+                            PlayerButton(symbol: "forward.fill", title: ">|", diameter: 28, iconSize: 10, action: store.next)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 16)
+        .padding(.vertical, 12)
     }
 }
