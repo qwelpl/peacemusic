@@ -409,7 +409,7 @@ struct SongRow: View {
         .contentShape(.rect)
         .onHover { hovering in withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering } }
         .clickable()
-        .onTapGesture(count: 2, perform: play)
+        .onTapGesture(perform: play)
         .itemMenu(song)
     }
 
