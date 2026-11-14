@@ -40,9 +40,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    // Clicking the Dock icon brings back the full window, from the mini player too.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        miniPlayer.close()
-        return true
+        if miniPlayer.isOpen {
+            miniPlayer.close()
+        } else {
+            miniPlayer.showMainWindow()
+        }
+        return false
     }
 }
 
