@@ -54,18 +54,33 @@ struct ConstellationView: View {
         let recent = (max(current - 1, 0)...current).compactMap { index -> VocalTrace.Line? in
             let line = lines[index]
             guard !line.isInterlude else { return nil }
-            let end = index + 1 < lines.count ? lines[index + 1].time : line.time + 6
-            let words = line.words ?? Self.spread(line, until: end)
-            return VocalTrace.Line(id: line.id, words: words.map(Self.sung), end: end)
+            let next = index + 1 < lines.count ? lines[index + 1].time : line.time + 6
+            let words = (line.words ?? Self.spread(line, until: next)).map(Self.sung)
+            // Fade soon after the last word, so instrumental gaps go quiet.
+            let end = min(next, (words.last?.end ?? line.time) + Self.holdAfterLine)
+            return VocalTrace.Line(id: line.id, words: words, end: end)
         }
         return VocalTrace(lines: recent, position: position)
     }
 
-    // Lines without word timing get their words spaced evenly across the line.
+    private static let holdAfterLine = 1.5
+    // A typical sung syllable, used when a line has no word timing.
+    private static let syllablePace = 0.27
+
+    // Lines without word timing are sung from the line's start at a steady syllable pace,
+    // squeezed only when the next line comes sooner. Stretching them to fill the gap
+    // would keep drawing through instrumental breaks.
     private static func spread(_ line: LyricLine, until end: Double) -> [LyricWord] {
         let texts = line.text.split(separator: " ").map(String.init)
-        let gap = max(end - line.time, 0.5) * 0.85 / Double(max(texts.count, 1))
-        return texts.enumerated().map { LyricWord(text: $1, time: line.time + gap * Double($0), duration: gap * 0.8) }
+        let counts = texts.map(syllables(in:))
+        let total = Double(max(counts.reduce(0, +), 1))
+        let pace = min(syllablePace, max(end - line.time, 0.5) * 0.9 / total)
+        var time = line.time
+        return zip(texts, counts).map { text, count in
+            let duration = pace * Double(count)
+            defer { time += duration }
+            return LyricWord(text: text, time: time, duration: duration * 0.9)
+        }
     }
 
     // Splits a word's sung time evenly across its syllables.
