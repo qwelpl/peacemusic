@@ -32,6 +32,7 @@ struct MusicAppView: View {
     @AppStorage("showsSongPanel") private var showsSongPanel = true
 
     @State private var songTheme = SongTheme()
+    @State private var menus = MenuPresenter()
 
     var body: some View {
         ZStack {
@@ -76,6 +77,9 @@ struct MusicAppView: View {
             .padding(12)
             }
 
+            MenuLayer(presenter: menus)
+                .zIndex(3)
+
             if showsNowPlaying {
                 NowPlayingView(onClose: closeNowPlaying)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -83,6 +87,7 @@ struct MusicAppView: View {
             }
         }
         .environment(\.openItem, open)
+        .environment(\.menuPresenter, menus)
         .onChange(of: query) { if !query.isEmpty { path = [] } }
         .task(id: showsNowPlaying) {
             guard showsNowPlaying else { return }
@@ -452,16 +457,7 @@ private struct CollectionPage: View {
                             }
                             .help("Add to Library")
                         }
-                        Menu { ItemMenu(item: item) } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 14, weight: .bold))
-                                .frame(width: 40, height: 40)
-                                .songGlass(in: .circle, interactive: true)
-                                .contentShape(.circle)
-                        }
-                        .menuStyle(.button)
-                        .buttonStyle(.pointer)
-                        .menuIndicator(.hidden)
+                        MoreButton(item: item, size: 40, glass: true)
                     }
                     .padding(.top, 12)
                 }

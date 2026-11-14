@@ -138,7 +138,7 @@ struct LeftSidebar: View {
             .contentShape(.rect)
         }
         .buttonStyle(SidebarButtonStyle())
-        .contextMenu { ItemMenu(item: playlist) }
+        .itemMenu(playlist)
     }
 
     // A small live readout at the foot of the sidebar.
@@ -395,7 +395,7 @@ struct NowPlayingPanel: View {
                         CompactRow(title: song.title, subtitle: song.album, item: song, template: nil) {
                             store.play(songs, at: index, in: nil)
                         }
-                        .contextMenu { ItemMenu(item: song) }
+                        .itemMenu(song)
                     }
                 }
             }

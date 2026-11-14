@@ -213,56 +213,6 @@ extension PlayerStore {
     }
 }
 
-// Right-click menu shared by tiles and rows.
-struct ItemMenu: View {
-    let item: MediaItem
-
-    @Environment(PlayerStore.self) private var store
-    @Environment(\.openItem) private var openItem
-
-    var body: some View {
-        if item.isPlayable {
-            Button("Play", systemImage: "play") { store.play(item) }
-            if item.kind == .album || item.kind == .playlist {
-                Button("Shuffle", systemImage: "shuffle") { store.play(item, shuffle: true) }
-            }
-            Divider()
-            Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { store.playNext(item) }
-            Button("Play Last", systemImage: "text.line.last.and.arrowtriangle.forward") { store.playLater(item) }
-        }
-        if item.kind == .album || item.kind == .playlist || item.kind == .artist {
-            Button("Open", systemImage: "arrow.up.forward") { openItem(item) }
-        }
-        if !item.isLibrary, item.kind.ratingPath != nil {
-            Divider()
-            Button("Add to Library", systemImage: "plus") {
-                Task { await store.catalog.addToLibrary(item) }
-            }
-        }
-        if item.kind == .song {
-            Menu("Add to Playlist") {
-                Button("New Playlist…") {
-                    PlaylistNamer.ask { name in
-                        Task {
-                            await store.catalog.createPlaylist(named: name, with: item)
-                            await store.refreshLibraryPlaylists()
-                        }
-                    }
-                }
-                Divider()
-                ForEach(store.libraryPlaylists) { playlist in
-                    Button(playlist.title) { Task { await store.catalog.add(item, toPlaylist: playlist) } }
-                }
-            }
-        }
-        if item.kind.ratingPath != nil {
-            Divider()
-            Button("Love", systemImage: "heart") { Task { await store.catalog.rate(item, 1) } }
-            Button("Suggest Less", systemImage: "hand.thumbsdown") { Task { await store.catalog.rate(item, -1) } }
-        }
-    }
-}
-
 @MainActor
 enum PlaylistNamer {
     static func ask(_ completion: @escaping (String) -> Void) {
@@ -332,7 +282,7 @@ struct ItemTile: View {
             if item.kind == .song { store.play([item], at: 0, in: nil) } else { openItem(item) }
         }
         .onHover { hovering in withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { isHovered = hovering } }
-        .contextMenu { ItemMenu(item: item) }
+        .itemMenu(item)
     }
 }
 
@@ -395,7 +345,7 @@ struct HeroCard: View {
         .clickable()
         .onTapGesture { openItem(item) }
         .onHover { hovering in withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { isHovered = hovering } }
-        .contextMenu { ItemMenu(item: item) }
+        .itemMenu(item)
     }
 }
 
@@ -443,15 +393,8 @@ struct SongRow: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Menu {
-                ItemMenu(item: song)
-            } label: {
-                Image(systemName: "ellipsis").frame(width: 34, height: 34).contentShape(.rect)
-            }
-            .menuStyle(.button)
-            .buttonStyle(.pointer)
-            .menuIndicator(.hidden)
-            .opacity(isHovered ? 1 : 0)
+            MoreButton(item: song)
+                .opacity(isHovered ? 1 : 0)
             Text(Self.time(song.duration))
                 .font(.system(size: 12, weight: .medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.45))
@@ -467,7 +410,7 @@ struct SongRow: View {
         .onHover { hovering in withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering } }
         .clickable()
         .onTapGesture(count: 2, perform: play)
-        .contextMenu { ItemMenu(item: song) }
+        .itemMenu(song)
     }
 
     @ViewBuilder
