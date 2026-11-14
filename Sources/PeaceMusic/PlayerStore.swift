@@ -40,7 +40,9 @@ final class PlayerStore {
     private var commandGuardUntil = Date.distantPast
     private var started = false
     private var syncMessageTask: Task<Void, Never>?
-    private static let lyricLead = 0.1
+    private static let lyricLeadTime = 0.1
+    // How far ahead of the audio the lyrics run, including the per-song nudge.
+    var lyricLead: Double { Self.lyricLeadTime + lyricOffset }
 
     func start() {
         guard !started else { return }
@@ -75,7 +77,7 @@ final class PlayerStore {
     }
 
     func lyricPosition(at date: Date = Date()) -> Double {
-        position(at: date) + Self.lyricLead + lyricOffset
+        position(at: date) + lyricLead
     }
 
     // MARK: Polling

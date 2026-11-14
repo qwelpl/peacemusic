@@ -201,8 +201,9 @@ private struct HomePage: View {
             PageTitle(title: greeting, subtitle: Date().formatted(.dateTime.weekday(.wide).month().day()))
             Loading(load: { await store.catalog.home() }, isEmpty: { $0.isEmpty }) { shelves in
                 VStack(alignment: .leading, spacing: 44) {
-                    if let feature = shelves.lazy.flatMap(\.items).first(where: { $0.kind == .album || $0.kind == .playlist }) {
-                        HeroCard(item: feature, eyebrow: "Picked for you")
+                    let recent = shelves.first { $0.title == "Recently Played" }?.items ?? []
+                    if let feature = recent.first ?? shelves.first?.items.first {
+                        HeroCard(item: feature, eyebrow: "Last played")
                             .padding(.horizontal, Layout.gutter)
                     }
                     ForEach(shelves) { ShelfView(shelf: $0) }
@@ -592,6 +593,7 @@ private struct SignInView: View {
 private struct PlayerDock: View {
     @Binding var showsNowPlaying: Bool
     @Binding var showsSongPanel: Bool
+    @AppStorage("lyricsExpanded") private var lyricsExpanded = false
 
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
@@ -670,8 +672,17 @@ private struct PlayerDock: View {
         HStack(spacing: 6) {
             dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
                 .help("Love")
-            dockButton("quote.bubble", size: 14, action: openNowPlaying)
-                .help("Lyrics")
+            dockButton("waveform", size: 14, action: openNowPlaying)
+                .help("Visualizer")
+            dockButton("quote.bubble", size: 14, dimmed: !(showsSongPanel && lyricsExpanded)) {
+                if showsSongPanel && lyricsExpanded {
+                    lyricsExpanded = false
+                } else {
+                    showsSongPanel = true
+                    lyricsExpanded = true
+                }
+            }
+            .help("Lyrics")
             dockButton("sidebar.right", size: 14, dimmed: !showsSongPanel) { showsSongPanel.toggle() }
             .help("Song details, lyrics and Up Next")
             dockButton("pip.enter", size: 14, action: miniPlayer.open)

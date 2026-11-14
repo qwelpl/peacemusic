@@ -194,6 +194,7 @@ struct NowPlayingPanel: View {
     @Environment(\.openItem) private var openItem
     @State private var context: MusicCatalog.SongContext?
     @State private var upNext: [AppleMusicEngine.QueueEntry] = []
+    @AppStorage("lyricsExpanded") private var lyricsExpanded = false
 
     var body: some View {
         ScrollView {
@@ -260,31 +261,61 @@ struct NowPlayingPanel: View {
         .disabled(item == nil)
     }
 
-    // The lines around the one being sung.
+    // The lines around the one being sung. Clicking opens the whole song in place.
     @ViewBuilder
     private var lyrics: some View {
         if case .synced(let lines) = store.lyrics {
             let current = store.lyricIndex ?? -1
-            let start = max(min(current - 1, lines.count - 5), 0)
-            let shown = Array(lines.enumerated()).dropFirst(start).prefix(5).filter { !$0.element.isInterlude }
             card("Lyrics", symbol: "quote.bubble") {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(shown, id: \.element.id) { index, line in
-                        Text(line.text)
-                            .font(.system(size: index == current ? 17 : 14, weight: index == current ? .heavy : .semibold))
-                            .foregroundStyle(.white.opacity(index == current ? 1 : index < current ? 0.3 : 0.5))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                if lyricsExpanded {
+                    ExpandedLyrics(lines: lines, current: current)
+                } else {
+                    let start = max(min(current - 1, lines.count - 5), 0)
+                    let shown = Array(lines.enumerated()).dropFirst(start).prefix(5).filter { !$0.element.isInterlude }
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(shown, id: \.element.id) { index, line in
+                            Text(line.text)
+                                .font(.system(size: index == current ? 17 : 14, weight: index == current ? .heavy : .semibold))
+                                .foregroundStyle(.white.opacity(index == current ? 1 : index < current ? 0.3 : 0.5))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
+                    .animation(.spring(response: 0.45, dampingFraction: 0.85), value: current)
                 }
-                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: current)
-                .contentShape(.rect)
-                .onTapGesture(perform: openNowPlaying)
+            } accessory: {
+                Image(systemName: lyricsExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+            .contentShape(.rect)
+            .onTapGesture {
+                guard !lyricsExpanded else { return }
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { lyricsExpanded = true }
+            }
+            .overlay(alignment: .topTrailing) {
+                if lyricsExpanded {
+                    Color.clear
+                        .frame(width: 44, height: 40)
+                        .contentShape(.rect)
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { lyricsExpanded = false }
+                        }
+                }
             }
         } else if case .plain(let text) = store.lyrics {
             card("Lyrics", symbol: "quote.bubble") {
-                Text(text).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.7)).lineLimit(8)
+                Text(text)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(lyricsExpanded ? nil : 8)
+            } accessory: {
+                Image(systemName: lyricsExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
             }
+            .contentShape(.rect)
+            .onTapGesture { withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { lyricsExpanded.toggle() } }
         }
     }
 
@@ -370,11 +401,24 @@ struct NowPlayingPanel: View {
     }
 
     private func card<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
+        card(title, symbol: symbol, content: content) { EmptyView() }
+    }
+
+    private func card<Content: View, Accessory: View>(
+        _ title: String,
+        symbol: String,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: symbol)
+            HStack {
+                Label(title, systemImage: symbol)
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundStyle(.white.opacity(0.45))
                 .labelStyle(.titleAndIcon)
+                Spacer()
+                accessory()
+            }
             content()
         }
         .padding(14)
@@ -456,5 +500,60 @@ private struct PanelVisualizer: View {
             .drawingGroup()
         }
         .listensToMusic()
+    }
+}
+
+// The whole song, following along. Clicking a line jumps there.
+private struct ExpandedLyrics: View {
+    let lines: [LyricLine]
+    let current: Int
+
+    @Environment(PlayerStore.self) private var store
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        if line.isInterlude {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 14, weight: .heavy))
+                                .foregroundStyle(.white.opacity(index == current ? 0.9 : 0.3))
+                                .id(line.id)
+                        } else {
+                            Text(line.text)
+                                .font(.system(size: 17, weight: .heavy))
+                                .foregroundStyle(.white.opacity(index == current ? 1 : index < current ? 0.3 : 0.5))
+                                .scaleEffect(index == current ? 1.03 : 1, anchor: .leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .contentShape(.rect)
+                                .onTapGesture { store.seek(to: max(line.time - store.lyricLead, 0)) }
+                                .id(line.id)
+                        }
+                    }
+                }
+                .padding(.vertical, 120)
+                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: current)
+            }
+            .scrollIndicators(.never)
+            .frame(height: 420)
+            .mask(LinearGradient(stops: [
+                .init(color: .clear, location: 0), .init(color: .black, location: 0.15),
+                .init(color: .black, location: 0.85), .init(color: .clear, location: 1),
+            ], startPoint: .top, endPoint: .bottom))
+            .onAppear { scroll(proxy, animated: false) }
+            .onChange(of: current) { scroll(proxy, animated: true) }
+        }
+    }
+
+    private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
+        guard lines.indices.contains(current) else { return }
+        let id = lines[current].id
+        if animated {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.9)) { proxy.scrollTo(id, anchor: .center) }
+        } else {
+            proxy.scrollTo(id, anchor: .center)
+        }
     }
 }
