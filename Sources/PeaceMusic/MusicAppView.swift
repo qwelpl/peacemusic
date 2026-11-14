@@ -31,6 +31,8 @@ struct MusicAppView: View {
     @State private var nowPlayingCovers = false
     @AppStorage("showsSongPanel") private var showsSongPanel = true
 
+    private var songTheme: SongTheme { store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors) }
+
     var body: some View {
         ZStack {
             AmbientBackground()
@@ -40,6 +42,9 @@ struct MusicAppView: View {
                 browser
             }
         }
+        .environment(\.songTheme, songTheme)
+        .tint(songTheme.accent)
+        .animation(.easeInOut(duration: 1.2), value: songTheme)
         .preferredColorScheme(.dark)
         .onAppear { store.start() }
         .task(id: store.status) {
@@ -295,7 +300,7 @@ private struct LibrarySongs: View {
                     .font(.system(size: 12, weight: .medium))
                     .padding(.horizontal, 12)
                     .frame(width: 220, height: 34)
-                    .glassEffect(.regular, in: .capsule)
+                    .songGlass(in: .capsule)
                 }
                 .padding(.horizontal, Layout.gutter)
                 SongList(songs: shown).padding(.horizontal, Layout.gutter - 12)
@@ -306,6 +311,8 @@ private struct LibrarySongs: View {
 
 private struct SearchPage: View {
     let query: String
+
+    @Environment(\.songTheme) private var theme
 
     @Environment(PlayerStore.self) private var store
     @State private var inLibrary = false
@@ -322,7 +329,7 @@ private struct SearchPage: View {
                     scope("Library", true)
                 }
                 .padding(4)
-                .glassEffect(.regular, in: .capsule)
+                .songGlass(in: .capsule)
                 .padding(.trailing, Layout.gutter)
             }
             if let shelves {
@@ -361,11 +368,11 @@ private struct SearchPage: View {
         } label: {
             Text(title)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(inLibrary == value ? .black : .white.opacity(0.8))
+                .foregroundStyle(inLibrary == value ? theme.onAccent : .white.opacity(0.8))
                 .padding(.horizontal, 14)
                 .frame(height: 28)
                 .background {
-                    if inLibrary == value { Capsule().fill(.white).matchedGeometryEffect(id: "scope", in: selection) }
+                    if inLibrary == value { Capsule().fill(theme.accent).matchedGeometryEffect(id: "scope", in: selection) }
                 }
                 .contentShape(.capsule)
         }
@@ -435,7 +442,7 @@ private struct CollectionPage: View {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 14, weight: .bold))
                                 .frame(width: 40, height: 40)
-                                .glassEffect(.regular.interactive(), in: .circle)
+                                .songGlass(in: .circle, interactive: true)
                                 .contentShape(.circle)
                         }
                         .menuStyle(.button)
@@ -532,8 +539,7 @@ private struct StationPage: View {
                 Label("Listen Now", systemImage: "play.fill")
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 160, height: 44)
-                    .background(.white, in: .capsule)
-                    .foregroundStyle(.black)
+                    .accentFill(in: .capsule)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
@@ -577,8 +583,7 @@ private struct SignInView: View {
                 Text("Sign In")
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 160, height: 44)
-                    .background(.white, in: .capsule)
-                    .foregroundStyle(.black)
+                    .accentFill(in: .capsule)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
@@ -612,7 +617,7 @@ private struct PlayerDock: View {
             progress
         }
         .frame(maxWidth: 980)
-        .glassEffect(.regular, in: .rect(cornerRadius: 26, style: .continuous))
+        .songGlass(in: .rect(cornerRadius: 26, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
         .padding(.horizontal, 24)
         .onHover { hovering in withAnimation(.easeOut(duration: 0.2)) { isHovered = hovering } }
@@ -657,9 +662,8 @@ private struct PlayerDock: View {
             Button(action: store.togglePlayPause) {
                 Image(systemName: store.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(.black)
                     .frame(width: 46, height: 46)
-                    .background(.white, in: .circle)
+                    .accentFill(in: .circle)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)

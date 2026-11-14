@@ -11,6 +11,8 @@ enum Destination: Hashable {
 // Navigation, library and playlists on a floating glass column. The window's traffic
 // lights sit inside its top edge.
 struct LeftSidebar: View {
+    @Environment(\.songTheme) private var theme
+
     @Binding var destination: Destination
     @Binding var query: String
     let select: (Destination) -> Void
@@ -48,7 +50,7 @@ struct LeftSidebar: View {
             .scrollIndicators(.never)
             listening
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
+        .songGlass(in: .rect(cornerRadius: 24, style: .continuous))
         .background {
             Button("") { searching = true }.keyboardShortcut("f", modifiers: .command).hidden()
         }
@@ -108,13 +110,13 @@ struct LeftSidebar: View {
                 Image(systemName: symbol)
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 18)
-                    .foregroundStyle(isSelected ? .white : .white.opacity(0.65))
+                    .foregroundStyle(isSelected ? theme.accent : .white.opacity(0.65))
                 Text(title).font(.system(size: 13, weight: isSelected ? .bold : .medium))
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
             .frame(height: 32)
-            .background(.white.opacity(isSelected ? 0.14 : 0), in: .rect(cornerRadius: 10, style: .continuous))
+            .background(isSelected ? theme.accent.opacity(0.22) : .clear, in: .rect(cornerRadius: 10, style: .continuous))
             .contentShape(.rect)
         }
         .buttonStyle(SidebarButtonStyle())
@@ -132,7 +134,7 @@ struct LeftSidebar: View {
             }
             .padding(.horizontal, 6)
             .frame(height: 36)
-            .background(.white.opacity(isSelected ? 0.14 : 0), in: .rect(cornerRadius: 10, style: .continuous))
+            .background(isSelected ? theme.accent.opacity(0.22) : .clear, in: .rect(cornerRadius: 10, style: .continuous))
             .contentShape(.rect)
         }
         .buttonStyle(SidebarButtonStyle())
@@ -210,7 +212,7 @@ struct NowPlayingPanel: View {
             .padding(18)
         }
         .scrollIndicators(.never)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
+        .songGlass(in: .rect(cornerRadius: 24, style: .continuous))
         .task(id: store.track?.id) {
             context = nil
             guard let id = store.track?.id else { return }

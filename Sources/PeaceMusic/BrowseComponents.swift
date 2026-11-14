@@ -4,6 +4,62 @@ import SwiftUI
 extension EnvironmentValues {
     // Opens an album, playlist, artist or station page.
     @Entry var openItem: (MediaItem) -> Void = { _ in }
+    @Entry var songTheme = SongTheme()
+}
+
+// The app's colors, taken from the cover of the song that's playing.
+struct SongTheme: Equatable {
+    var accent: Color = .white
+    // Text and icons that sit on the accent.
+    var onAccent: Color = .black
+    // A faint wash of the song's color through every glass panel.
+    var glass: Color = .clear
+
+    init() {}
+
+    init(accents: [Color]) {
+        guard let first = accents.first, let color = NSColor(first).usingColorSpace(.sRGB) else { return }
+        accent = Color(hue: color.hueComponent, saturation: min(color.saturationComponent, 0.7), brightness: 0.98)
+        let resolved = NSColor(accent).usingColorSpace(.sRGB) ?? .white
+        let luminance = 0.2126 * resolved.redComponent + 0.7152 * resolved.greenComponent + 0.0722 * resolved.blueComponent
+        onAccent = luminance > 0.6 ? .black : .white
+        glass = accent.opacity(0.14)
+    }
+}
+
+private struct SongGlass<S: Shape>: ViewModifier {
+    let shape: S
+    let interactive: Bool
+
+    @Environment(\.songTheme) private var theme
+
+    func body(content: Content) -> some View {
+        content.glassEffect(interactive ? Glass.regular.tint(theme.glass).interactive() : Glass.regular.tint(theme.glass), in: shape)
+    }
+}
+
+private struct AccentFill<S: Shape>: ViewModifier {
+    let shape: S
+
+    @Environment(\.songTheme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(theme.onAccent)
+            .background(theme.accent, in: shape)
+            .shadow(color: theme.accent.opacity(0.45), radius: 12, y: 4)
+    }
+}
+
+extension View {
+    func songGlass<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
+        modifier(SongGlass(shape: shape, interactive: interactive))
+    }
+
+    // Filled with the song's color, the way the main buttons are.
+    func accentFill<S: Shape>(in shape: S) -> some View {
+        modifier(AccentFill(shape: shape))
+    }
 }
 
 // MARK: Artwork
@@ -245,7 +301,7 @@ struct ItemTile: View {
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 40, height: 40)
-                                .glassEffect(.regular.interactive(), in: .circle)
+                                .songGlass(in: .circle, interactive: true)
                                 .contentShape(.circle)
                         }
                         .buttonStyle(.plain)
@@ -349,6 +405,8 @@ extension String {
 // MARK: Song rows
 
 struct SongRow: View {
+    @Environment(\.songTheme) private var theme
+
     let song: MediaItem
     let index: Int
     var showsArtwork = true
@@ -369,6 +427,7 @@ struct SongRow: View {
                     if song.isExplicit { ExplicitBadge() }
                 }
                 .font(.system(size: 13, weight: isCurrent ? .bold : .medium))
+                .foregroundStyle(isCurrent ? theme.accent : .white)
                 if showsArtwork {
                     Text(song.subtitle).font(.system(size: 12)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
                 }
@@ -541,8 +600,7 @@ struct PlayButtons: View {
                 Label("Play", systemImage: "play.fill")
                     .font(.system(size: 14, weight: .bold))
                     .frame(width: 110, height: 40)
-                    .background(.white, in: .capsule)
-                    .foregroundStyle(.black)
+                    .accentFill(in: .capsule)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
@@ -551,7 +609,7 @@ struct PlayButtons: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 110, height: 40)
-                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .songGlass(in: .capsule, interactive: true)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
@@ -560,6 +618,8 @@ struct PlayButtons: View {
 }
 
 struct GlassIconButton: View {
+    @Environment(\.songTheme) private var theme
+
     let symbol: String
     var size: CGFloat = 40
     var isOn = false
@@ -569,10 +629,10 @@ struct GlassIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.36, weight: .bold))
-                .foregroundStyle(isOn ? .black : .white)
+                .foregroundStyle(isOn ? theme.onAccent : .white)
                 .frame(width: size, height: size)
-                .background(isOn ? Color.white : .clear, in: .circle)
-                .glassEffect(.regular.interactive(), in: .circle)
+                .background(isOn ? theme.accent : .clear, in: .circle)
+                .songGlass(in: .circle, interactive: true)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
@@ -599,7 +659,7 @@ struct Loading<Value, Content: View>: View {
                         Text("Try Again")
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .glassEffect(.regular.interactive(), in: .capsule)
+                            .songGlass(in: .capsule, interactive: true)
                             .contentShape(.capsule)
                     }
                     .buttonStyle(.plain)

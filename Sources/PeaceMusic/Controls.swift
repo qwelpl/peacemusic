@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct Scrubber: View {
+    @Environment(\.songTheme) private var songTheme
+
     let value: Double
     var onChange: (Double) -> Void
     var onCommit: (Double) -> Void = { _ in }
@@ -23,7 +25,7 @@ struct Scrubber: View {
             ZStack(alignment: .leading) {
                 shape.fill(.white.opacity(0.24))
                 shape
-                    .fill(.white)
+                    .fill(songTheme.accent)
                     .frame(width: max(height, geometry.size.width * min(max(value, 0), 1)))
                     .shadow(color: .white.opacity(isDragging && theme == .glass ? 0.6 : 0), radius: 8)
             }
