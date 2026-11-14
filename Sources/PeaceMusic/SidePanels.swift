@@ -197,20 +197,25 @@ struct NowPlayingPanel: View {
     @Environment(\.openItem) private var openItem
     @State private var context: MusicCatalog.SongContext?
     @State private var upNext: [AppleMusicEngine.QueueEntry] = []
-    @AppStorage("lyricsExpanded") private var lyricsExpanded = false
+    // Plain state rather than a stored setting, so changing it animates.
+    @State private var lyricsExpanded = false
+    @AppStorage("showsLyricsCard") private var showsLyricsCard = true
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 PanelVisualizer().frame(height: 46)
-                lyrics
+                if showsLyricsCard {
+                    lyrics.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
+                }
                 about
                 artist
                 more
                 queue
             }
             .padding(18)
+            .animation(.spring(response: 0.45, dampingFraction: 0.86), value: showsLyricsCard)
         }
         .scrollIndicators(.never)
         .songGlass(in: .rect(cornerRadius: 24, style: .continuous))
@@ -274,6 +279,7 @@ struct NowPlayingPanel: View {
             card("Lyrics", symbol: "quote.bubble") {
                 if lyricsExpanded {
                     ExpandedLyrics(lines: lines, current: current)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 } else {
                     let start = max(min(current - 1, lines.count - 5), 0)
                     let shown = Array(lines.enumerated()).dropFirst(start).prefix(5).filter { !$0.element.isInterlude }
@@ -287,12 +293,15 @@ struct NowPlayingPanel: View {
                         }
                     }
                     .animation(.spring(response: 0.45, dampingFraction: 0.85), value: current)
+                    .transition(.opacity)
                 }
             } accessory: {
                 Image(systemName: lyricsExpanded ? "chevron.up" : "chevron.down")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.white.opacity(0.45))
             }
+            .clipped()
+            .animation(.spring(response: 0.5, dampingFraction: 0.86), value: lyricsExpanded)
             .contentShape(.rect)
             .clickable()
             .onTapGesture {

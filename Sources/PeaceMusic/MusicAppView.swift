@@ -619,7 +619,7 @@ private struct SignInView: View {
 private struct PlayerDock: View {
     @Binding var showsNowPlaying: Bool
     @Binding var showsSongPanel: Bool
-    @AppStorage("lyricsExpanded") private var lyricsExpanded = false
+    @AppStorage("showsLyricsCard") private var showsLyricsCard = true
 
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
@@ -700,15 +700,16 @@ private struct PlayerDock: View {
                 .help("Love")
             dockButton("waveform", size: 14, action: openNowPlaying)
                 .help("Visualizer")
-            dockButton("quote.bubble", size: 14, dimmed: !(showsSongPanel && lyricsExpanded)) {
-                if showsSongPanel && lyricsExpanded {
-                    lyricsExpanded = false
-                } else {
+            // Lyrics on or off in the song panel.
+            dockButton(showsLyricsCard ? "quote.bubble.fill" : "quote.bubble", size: 14, dimmed: !(showsSongPanel && showsLyricsCard)) {
+                if !showsSongPanel {
                     showsSongPanel = true
-                    lyricsExpanded = true
+                    showsLyricsCard = true
+                } else {
+                    showsLyricsCard.toggle()
                 }
             }
-            .help("Lyrics")
+            .help(showsLyricsCard ? "Hide Lyrics" : "Show Lyrics")
             dockButton("sidebar.right", size: 14, dimmed: !showsSongPanel) { showsSongPanel.toggle() }
             .help("Song details, lyrics and Up Next")
             dockButton("pip.enter", size: 14, action: miniPlayer.open)
