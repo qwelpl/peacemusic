@@ -378,7 +378,7 @@ struct HeroCard: View {
                             .lineLimit(2)
                             .frame(maxWidth: 460, alignment: .leading)
                     }
-                    PlayButtons(play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
+                    PlayButtons(item: item, play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
                         .padding(.top, 8)
                 }
                 Spacer(minLength: 0)
@@ -591,22 +591,33 @@ struct PageTitle: View {
     }
 }
 
-// Play and Shuffle keep one look everywhere, whatever song is playing.
+// Play and Shuffle take their color from the album or playlist they belong to, so they
+// stay put while songs change. Without one, they're amber.
 struct PlayButtons: View {
-    static let playColor = Color(red: 1, green: 0.74, blue: 0.25)
+    static let defaultColor = Color(red: 1, green: 0.74, blue: 0.25)
 
+    var item: MediaItem? = nil
     let play: () -> Void
     let shuffle: () -> Void
+
+    @State private var color: Color?
+
+    private var fill: Color { color ?? Self.defaultColor }
+    private var label: Color {
+        let resolved = NSColor(fill).usingColorSpace(.sRGB) ?? .white
+        let luminance = 0.2126 * resolved.redComponent + 0.7152 * resolved.greenComponent + 0.0722 * resolved.blueComponent
+        return luminance > 0.6 ? .black : .white
+    }
 
     var body: some View {
         HStack(spacing: 10) {
             Button(action: play) {
                 Label("Play", systemImage: "play.fill")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(label)
                     .frame(width: 110, height: 40)
-                    .background(Self.playColor, in: .capsule)
-                    .shadow(color: Self.playColor.opacity(0.45), radius: 12, y: 4)
+                    .background(fill, in: .capsule)
+                    .shadow(color: fill.opacity(0.45), radius: 12, y: 4)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
@@ -615,10 +626,15 @@ struct PlayButtons: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 110, height: 40)
-                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .glassEffect(.regular.tint(fill.opacity(0.18)).interactive(), in: .capsule)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
+        }
+        .task(id: item?.id) {
+            guard let url = item?.artworkURL(128) else { color = nil; return }
+            _ = await ArtworkCache.shared.load(url)
+            withAnimation(.easeOut(duration: 0.3)) { color = ArtworkCache.shared.color(for: url) }
         }
     }
 }

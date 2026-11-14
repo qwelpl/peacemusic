@@ -438,7 +438,7 @@ private struct CollectionPage: View {
                             .frame(maxWidth: 560, alignment: .leading)
                     }
                     HStack(spacing: 10) {
-                        PlayButtons(play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
+                        PlayButtons(item: shown, play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
                         if !item.isLibrary {
                             GlassIconButton(symbol: added ? "checkmark" : "plus", isOn: added) {
                                 Task { await store.catalog.addToLibrary(item) }
@@ -512,7 +512,7 @@ private struct ArtistPage: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.5)
                     if let songs = page?.shelves.first(where: { $0.isSongs })?.items {
-                        PlayButtons(play: { store.play(songs, at: 0, in: nil) }, shuffle: { store.play(songs.shuffled(), at: 0, in: nil) })
+                        PlayButtons(item: artist, play: { store.play(songs, at: 0, in: nil) }, shuffle: { store.play(songs.shuffled(), at: 0, in: nil) })
                     }
                 }
             }
