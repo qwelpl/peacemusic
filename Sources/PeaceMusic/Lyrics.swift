@@ -26,6 +26,7 @@ enum Lyrics: Equatable {
 enum LyricsSource: String, Codable {
     case netEaseWords = "NetEase word timing"
     case netEaseLines = "NetEase line timing"
+    case kugouWords = "Kugou word timing"
     case lrclib = "LRCLIB line timing"
     case plain = "unsynced"
 }
@@ -34,6 +35,7 @@ private let interludeGap = 7.0
 
 private func isCredit(_ text: String) -> Bool {
     text.contains(#/^.{0,24}(作词|作曲|编曲|制作|词|曲|lyrics by|written by|composed by|producer|produced by)\s*[:：]/#.ignoresCase())
+        || text.contains(#/^(engineered|mixed|mastered|recorded|produced|arranged|composed|written|lyrics|vocal direct|digital edit|a&r|executive produc)\w*\b/#.ignoresCase())
 }
 
 enum LRCParser {
@@ -147,6 +149,29 @@ final class LyricsClient: @unchecked Sendable {
         let yrc: Body?
     }
 
+    private struct KugouSearch: Decodable {
+        struct Candidate: Decodable {
+            let id: String
+            let accesskey: String
+            let song: String?
+            let singer: String?
+            let duration: Double?
+        }
+        let candidates: [Candidate]?
+    }
+
+    private struct KugouDownload: Decodable { let content: String? }
+
+    private struct KugouSongSearch: Decodable {
+        struct Data: Decodable { let info: [Song]? }
+        struct Song: Decodable {
+            let hash: String
+            let songname: String?
+            let singername: String?
+            let duration: Double?
+        }
+        let data: Data?
+    }
     struct Resolved: Codable {
         var source: LyricsSource?
         var instrumental = false
@@ -171,10 +196,10 @@ final class LyricsClient: @unchecked Sendable {
     private let cacheDirectory: URL = {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let root = base.appendingPathComponent("PeaceMusic", isDirectory: true)
-        for old in ["lyrics", "lyrics-v2"] {
+        for old in ["lyrics", "lyrics-v2", "lyrics-v3"] {
             try? FileManager.default.removeItem(at: root.appendingPathComponent(old))
         }
-        let url = root.appendingPathComponent("lyrics-v3", isDirectory: true)
+        let url = root.appendingPathComponent("lyrics-v4", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()
@@ -212,9 +237,11 @@ final class LyricsClient: @unchecked Sendable {
     private func resolve(_ track: Track) async -> (Resolved, Bool) {
         async let lrclibResult = lrclibCandidates(track)
         async let netEaseResult = netEaseLyrics(track)
+        async let kugouResult = kugouLyrics(track)
         let lrclib = await lrclibResult
         let netEase = await netEaseResult
-        let allSourcesAnswered = lrclib != nil && netEase != nil
+        let kugou = await kugouResult
+        let allSourcesAnswered = lrclib != nil && netEase != nil && kugou != nil
 
         var candidates = lrclib ?? []
         // A featured version can have its own verses, while LRCLIB often files the solo
@@ -227,10 +254,11 @@ final class LyricsClient: @unchecked Sendable {
         let synced = close.compactMap(\.syncedLyrics).filter { !$0.isEmpty }
         let parsed = synced.map { LRCParser.parse($0, duration: track.duration) }
         let wordLines = netEase?.yrc.map(YRCParser.parse) ?? []
+        let kugouLines = (kugou ?? nil).map(YRCParser.parse) ?? []
         let netEaseLines = netEase?.lrc.map { LRCParser.parse($0, duration: track.duration) } ?? []
 
         // LRCLIB sometimes files a shorter edit under the full-length song.
-        let bestCoverage = (parsed + [wordLines, netEaseLines]).map(Self.coverage).max() ?? 0
+        let bestCoverage = (parsed + [wordLines, netEaseLines, kugouLines]).map(Self.coverage).max() ?? 0
         func isComplete(_ lines: [LyricLine]) -> Bool {
             !lines.isEmpty && Self.coverage(lines) >= bestCoverage - track.duration * Self.maxMissingShare
         }
@@ -239,9 +267,13 @@ final class LyricsClient: @unchecked Sendable {
         let reference = Self.consensus(completeVersions, duration: track.duration)
         let referenceLines = reference.map { LRCParser.parse($0, duration: track.duration) }
         let offset = (referenceLines ?? parsed.first).flatMap { Self.medianOffset(wordLines, $0) }
+        let kugouOffset = (referenceLines ?? parsed.first ?? (wordLines.isEmpty ? nil : wordLines)).flatMap { Self.medianOffset(kugouLines, $0) }
 
         if isComplete(wordLines), abs(offset ?? 0) <= Self.maxWordTimingOffset, let yrc = netEase?.yrc {
             return (Resolved(source: .netEaseWords, yrc: yrc), allSourcesAnswered)
+        }
+        if isComplete(kugouLines), abs(kugouOffset ?? 0) <= Self.maxWordTimingOffset, let yrc = kugou ?? nil {
+            return (Resolved(source: .kugouWords, yrc: yrc), allSourcesAnswered)
         }
         if let reference {
             return (Resolved(source: .lrclib, lrc: reference), allSourcesAnswered)
@@ -403,6 +435,107 @@ final class LyricsClient: @unchecked Sendable {
             lineLyrics = lineLyrics ?? lyric.lrc?.lyric
         }
         return (lineLyrics, nil)
+    }
+
+    /// nil = request failed, .some(nil) = no match. KRC comes back converted to NetEase's YRC layout.
+    private func kugouLyrics(_ track: Track) async -> String?? {
+        var search = URLComponents(string: "https://lyrics.kugou.com/search")!
+        search.queryItems = [
+            .init(name: "ver", value: "1"),
+            .init(name: "man", value: "yes"),
+            .init(name: "client", value: "pc"),
+            .init(name: "keyword", value: "\(track.artist) - \(Self.cleanTitle(track.title))"),
+            .init(name: "duration", value: String(Int(track.duration * 1000))),
+        ]
+        guard let response: KugouSearch = await fetch(search.url!) else { return nil }
+        var match = (response.candidates ?? []).first {
+            Self.isKugouMatch(title: $0.song, singer: $0.singer, duration: ($0.duration ?? 0) / 1000, track: track)
+        }
+        // The lyric search ranks other versions first for some songs, so find the exact
+        // recording in the song catalog and ask for its lyrics instead.
+        if match == nil {
+            match = await kugouCandidateFromCatalog(track)
+        }
+        guard let match else { return .some(nil) }
+
+        var download = URLComponents(string: "https://lyrics.kugou.com/download")!
+        download.queryItems = [
+            .init(name: "ver", value: "1"),
+            .init(name: "client", value: "pc"),
+            .init(name: "id", value: match.id),
+            .init(name: "accesskey", value: match.accesskey),
+            .init(name: "fmt", value: "krc"),
+            .init(name: "charset", value: "utf8"),
+        ]
+        guard let body: KugouDownload = await fetch(download.url!) else { return nil }
+        guard let content = body.content, let krc = Self.decodeKRC(content) else { return .some(nil) }
+        return Self.yrc(fromKRC: krc, track: track)
+    }
+
+    private func kugouCandidateFromCatalog(_ track: Track) async -> KugouSearch.Candidate? {
+        var search = URLComponents(string: "https://mobiles.kugou.com/api/v3/search/song")!
+        search.queryItems = [
+            .init(name: "format", value: "json"),
+            .init(name: "keyword", value: "\(track.artist) \(Self.cleanTitle(track.title))"),
+            .init(name: "page", value: "1"),
+            .init(name: "pagesize", value: "10"),
+        ]
+        guard let response: KugouSongSearch = await fetch(search.url!),
+              let song = (response.data?.info ?? []).first(where: {
+                  Self.isKugouMatch(title: $0.songname, singer: $0.singername, duration: $0.duration ?? 0, track: track)
+              }) else { return nil }
+
+        var lyrics = URLComponents(string: "https://krcs.kugou.com/search")!
+        lyrics.queryItems = [
+            .init(name: "ver", value: "1"),
+            .init(name: "man", value: "yes"),
+            .init(name: "client", value: "mobi"),
+            .init(name: "hash", value: song.hash),
+        ]
+        guard let found: KugouSearch = await fetch(lyrics.url!) else { return nil }
+        return (found.candidates ?? []).first {
+            abs(($0.duration ?? 0) / 1000 - track.duration) <= Self.durationTolerance
+        }
+    }
+
+    private static func isKugouMatch(title: String?, singer: String?, duration: Double, track: Track) -> Bool {
+        let title = title ?? ""
+        let artists = (singer ?? "").components(separatedBy: CharacterSet(charactersIn: "、,&/"))
+        let difference = abs(duration - track.duration)
+        guard difference <= durationTolerance, isSameSong(candidate: title, track: track) else { return false }
+        return isSameArtist(candidates: artists, track: track)
+            || isSameSongInAnotherScript(title, artists: artists, difference: difference, track: track)
+    }
+
+    private static let krcKey: [UInt8] = [64, 71, 97, 119, 94, 50, 116, 71, 81, 54, 49, 45, 206, 210, 110, 105]
+
+    /// KRC is "krc1", then zlib data XORed with a fixed key.
+    private static func decodeKRC(_ base64: String) -> String? {
+        guard let data = Data(base64Encoded: base64), data.count > 6 else { return nil }
+        let bytes = data.dropFirst(4).enumerated().map { $1 ^ krcKey[$0 % krcKey.count] }
+        // Foundation wants raw deflate, so skip the two-byte zlib header.
+        guard let inflated = try? (Data(bytes.dropFirst(2)) as NSData).decompressed(using: .zlib) else { return nil }
+        return String(data: inflated as Data, encoding: .utf8)
+    }
+
+    /// KRC words are timed from the start of their line; YRC times them from the start of the song.
+    private static func yrc(fromKRC krc: String, track: Track) -> String? {
+        let header = #/^\[(\d+),(\d+)\]/#
+        let word = #/<(\d+),(\d+),\d+>/#
+        let artist = normalized(track.artist)
+        let title = normalized(cleanTitle(track.title))
+        var lines: [String] = []
+        for raw in krc.split(whereSeparator: \.isNewline) {
+            guard let match = raw.firstMatch(of: header) else { continue }
+            let start = Int(match.1)!
+            var line = String(raw)
+            line.replace(word) { "(\(start + Int($0.1)!),\($0.2),0)" }
+            // Kugou opens with a "Title - Artist" line.
+            let plain = normalized(line.replacing(#/\(\d+,\d+,0\)/#, with: "").replacing(header, with: ""))
+            if !artist.isEmpty, !title.isEmpty, plain.contains(artist), plain.contains(title) { continue }
+            lines.append(line)
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     private func fetch<T: Decodable>(_ url: URL) async -> T? {
