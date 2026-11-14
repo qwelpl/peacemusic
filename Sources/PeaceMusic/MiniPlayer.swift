@@ -719,7 +719,7 @@ private struct SleeveIcon: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .frame(width: size * 2, height: size * 2)
+                .frame(width: max(size * 2, 30), height: max(size * 2, 30))
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)

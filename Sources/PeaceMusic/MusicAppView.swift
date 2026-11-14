@@ -701,10 +701,10 @@ private struct PlayerDock: View {
                 .help("Mini Player")
             Image(systemName: "speaker.wave.2.fill").font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
             Slider(value: Binding(get: { store.volume }, set: store.setVolume), in: 0...1)
-                .controlSize(.mini)
+                .controlSize(.small)
                 .tint(.white)
                 .frame(width: 80)
-            RoutePicker().frame(width: 26, height: 26).help("AirPlay")
+            RoutePicker().frame(width: 34, height: 34).help("AirPlay")
         }
     }
 
@@ -734,7 +734,7 @@ private struct PlayerDock: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .bold))
                 .foregroundStyle(.white.opacity(dimmed ? 0.45 : 0.95))
-                .frame(width: 32, height: 32)
+                .frame(width: 38, height: 38)
                 .contentShape(.rect)
                 .contentTransition(.symbolEffect(.replace))
         }

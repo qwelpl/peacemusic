@@ -67,7 +67,7 @@ struct LeftSidebar: View {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.white.opacity(0.5))
-                        .frame(width: 22, height: 22)
+                        .frame(width: 30, height: 30)
                         .contentShape(.rect)
                 }
                     .buttonStyle(.plain)
@@ -89,7 +89,7 @@ struct LeftSidebar: View {
                     Button(action: action) {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .bold))
-                            .frame(width: 24, height: 24)
+                            .frame(width: 30, height: 30)
                             .contentShape(.rect)
                     }
                         .buttonStyle(.plain)

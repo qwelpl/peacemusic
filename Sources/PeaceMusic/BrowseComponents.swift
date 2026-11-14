@@ -444,7 +444,7 @@ struct SongRow: View {
             Menu {
                 ItemMenu(item: song)
             } label: {
-                Image(systemName: "ellipsis").frame(width: 24, height: 24).contentShape(.rect)
+                Image(systemName: "ellipsis").frame(width: 34, height: 34).contentShape(.rect)
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
