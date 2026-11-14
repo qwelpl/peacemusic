@@ -106,15 +106,28 @@ final class AppleMusicEngine: NSObject {
     // Calls the Apple Music API through the page's MusicKit, which carries its own token.
     // {storefront} in the path becomes the account's storefront.
     func api(_ path: String, _ parameters: [String: Any] = [:], method: String = "GET", body: Any? = nil) async -> [String: Any]? {
+        // The page's MusicKit isn't ready until it has reported in and signed in.
+        for _ in 0..<150 where status != .ok {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
         let bodyText = body.flatMap { try? JSONSerialization.data(withJSONObject: $0) }.flatMap { String(data: $0, encoding: .utf8) }
-        let result = try? await call("""
+        let result: Any?
+        do {
+            result = try await call("""
         const path = rawPath.replace('{storefront}', music.storefrontId);
         const fetchOptions = { method };
         if (bodyText) { fetchOptions.body = bodyText; fetchOptions.headers = { 'Content-Type': 'application/json' }; }
         const response = await music.api.music(path, parameters, { fetchOptions });
         return JSON.stringify(response.data ?? {});
         """, ["rawPath": path, "parameters": parameters, "method": method, "bodyText": bodyText ?? ""])
-        guard let text = result as? String, let data = text.data(using: .utf8) else { return nil }
+        } catch {
+            Self.logger.error("api \(method) \(path): \(error)")
+            result = nil
+        }
+        guard let text = result as? String, let data = text.data(using: .utf8) else {
+            Self.logger.error("api \(method) \(path) returned nothing")
+            return nil
+        }
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 

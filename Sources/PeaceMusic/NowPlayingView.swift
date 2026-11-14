@@ -11,6 +11,9 @@ enum PlayerMode: String, CaseIterable {
 }
 
 struct NowPlayingView: View {
+    // Set when Now Playing opens over the browser, which it can then go back to.
+    var onClose: (() -> Void)? = nil
+
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
 
@@ -31,7 +34,7 @@ struct NowPlayingView: View {
     private var chromeVisible: Bool { !isIdle || !store.isPlaying || showsLibrary }
 
     var body: some View {
-        if miniPlayer.isOpen {
+        if miniPlayer.isOpen, onClose == nil {
             Color.black
         } else {
             fullPlayer
@@ -81,6 +84,11 @@ struct NowPlayingView: View {
             isFocused = true
         }
         .onKeyPress(.space) { store.togglePlayPause(); return .handled }
+        .onKeyPress(.escape) {
+            guard let onClose else { return .ignored }
+            onClose()
+            return .handled
+        }
         .onKeyPress(.leftArrow) { store.previous(); return .handled }
         .onKeyPress(.rightArrow) { store.next(); return .handled }
         .onKeyPress(characters: .init(charactersIn: "m")) { _ in switchMode(); return .handled }
@@ -234,6 +242,10 @@ struct NowPlayingView: View {
     private var topBar: some View {
         GlassEffectContainer(spacing: 10) {
             HStack(spacing: 8) {
+                if let onClose {
+                    PlayerButton(symbol: "chevron.down", title: "BACK", action: onClose)
+                        .help("Back to your music (Esc)")
+                }
                 PlayerButton(symbol: "music.note.list", title: "LIBRARY", isOn: showsLibrary) {
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { showsLibrary.toggle() }
                 }

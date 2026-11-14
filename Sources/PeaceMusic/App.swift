@@ -52,7 +52,7 @@ struct PeaceApp: App {
 
     var body: some Scene {
         Window("Peace", id: "main") {
-            NowPlayingView()
+            MusicAppView()
                 .environment(delegate.store)
                 .environment(delegate.miniPlayer)
                 .environment(\.musicAnalyzer, delegate.analyzer)
