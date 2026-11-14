@@ -1,20 +1,6 @@
 import AVKit
 import SwiftUI
 
-enum AppTab: String, CaseIterable, Identifiable {
-    case home, new, radio, library
-
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .home: "Home"
-        case .new: "New"
-        case .radio: "Radio"
-        case .library: "Library"
-        }
-    }
-}
-
 enum LibrarySection: String, CaseIterable, Identifiable {
     case recent, playlists, albums, artists, songs
 
@@ -32,14 +18,16 @@ enum LibrarySection: String, CaseIterable, Identifiable {
 
 // The whole app. The current song's colors wash through everything, the navigation and
 // player float on glass, and Now Playing grows out of the player.
+// The whole app. The current song's colors wash through everything; navigation sits on
+// the left, the song that's playing fills the right, and Now Playing grows out of the dock.
 struct MusicAppView: View {
     @Environment(PlayerStore.self) private var store
 
-    @AppStorage("appTab") private var tab = AppTab.home
+    @State private var destination = Destination.home
     @State private var path: [MediaItem] = []
     @State private var query = ""
     @State private var showsNowPlaying = false
-    @State private var showsQueue = false
+    @AppStorage("showsSongPanel") private var showsSongPanel = true
 
     var body: some View {
         ZStack {
@@ -59,42 +47,49 @@ struct MusicAppView: View {
 
     private var browser: some View {
         ZStack {
-            pages
-                .environment(\.openItem) { item in
-                    if item.kind == .song {
-                        store.play([item], at: 0, in: nil)
-                    } else {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.88)) { path.append(item) }
-                    }
+            HStack(spacing: 12) {
+                LeftSidebar(destination: $destination, query: $query, select: select)
+                    .frame(width: 236)
+                main
+                if showsSongPanel, store.track != nil {
+                    NowPlayingPanel(openNowPlaying: openNowPlaying)
+                        .frame(width: 320)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
-
-            VStack(spacing: 0) {
-                TopBar(tab: $tab, query: $query, canGoBack: !path.isEmpty, goBack: goBack, selectTab: select)
-                Spacer()
-                PlayerDock(showsNowPlaying: $showsNowPlaying, showsQueue: $showsQueue)
-                    .padding(.bottom, 18)
             }
-
-            if showsQueue {
-                HStack {
-                    Spacer()
-                    QueuePanel(close: { withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) { showsQueue = false } })
-                        .frame(width: 330)
-                        .padding(.top, Layout.topInset - 8)
-                        .padding(.bottom, Layout.bottomInset - 10)
-                        .padding(.trailing, 18)
-                }
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
+            .padding(12)
 
             if showsNowPlaying {
                 NowPlayingView(onClose: { withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { showsNowPlaying = false } })
-                    .clipShape(.rect(cornerRadius: 0))
-                    .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .bottom).combined(with: .opacity)))
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(2)
             }
         }
+        .environment(\.openItem, open)
         .onChange(of: query) { if !query.isEmpty { path = [] } }
+        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: showsSongPanel)
+        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: store.track == nil)
+    }
+
+    private var main: some View {
+        ZStack(alignment: .topLeading) {
+            pages
+            if !path.isEmpty {
+                GlassIconButton(symbol: "chevron.left", size: 38, action: goBack)
+                    .keyboardShortcut("[", modifiers: .command)
+                    .padding(.leading, 18)
+                    .padding(.top, 14)
+                    .transition(.scale.combined(with: .opacity))
+            }
+            VStack {
+                Spacer()
+                PlayerDock(showsNowPlaying: $showsNowPlaying, showsSongPanel: $showsSongPanel)
+                    .padding(.bottom, 6)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(.rect(cornerRadius: 24, style: .continuous))
     }
 
     @ViewBuilder
@@ -107,28 +102,43 @@ struct MusicAppView: View {
             } else if !query.isEmpty {
                 SearchPage(query: query).transition(.opacity)
             } else {
-                switch tab {
+                switch destination {
                 case .home: HomePage().transition(.opacity)
                 case .new: ShelfPage(title: "New", subtitle: "Charts and releases", id: "new") { await store.catalog.browse() }.transition(.opacity)
                 case .radio: ShelfPage(title: "Radio", subtitle: "Stations and live shows", id: "radio") { await store.catalog.radio() }.transition(.opacity)
-                case .library: LibraryPage().transition(.opacity)
+                case .library(let section): LibraryPage(section: section).transition(.opacity)
+                case .playlist(let item): DetailPage(item: item).id(item.id).transition(.opacity)
                 }
             }
         }
+    }
+
+    private func open(_ item: MediaItem) {
+        if item.kind == .song {
+            store.play([item], at: 0, in: nil)
+        } else {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.88)) { path.append(item) }
+        }
+    }
+
+    private func openNowPlaying() {
+        guard store.track != nil else { return }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { showsNowPlaying = true }
     }
 
     private func goBack() {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { _ = path.popLast() }
     }
 
-    private func select(_ next: AppTab) {
+    private func select(_ next: Destination) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
-            tab = next
+            destination = next
             path = []
             query = ""
         }
     }
 }
+
 
 // MARK: Backdrop
 
@@ -148,88 +158,6 @@ private struct AmbientBackground: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
-    }
-}
-
-// MARK: Navigation
-
-private struct TopBar: View {
-    @Binding var tab: AppTab
-    @Binding var query: String
-    let canGoBack: Bool
-    let goBack: () -> Void
-    let selectTab: (AppTab) -> Void
-
-    @Namespace private var selection
-    @FocusState private var searching: Bool
-
-    var body: some View {
-        ZStack {
-            tabs
-            HStack(spacing: 10) {
-                if canGoBack {
-                    GlassIconButton(symbol: "chevron.left", size: 38, action: goBack)
-                        .keyboardShortcut("[", modifiers: .command)
-                        .transition(.scale.combined(with: .opacity))
-                }
-                Spacer()
-                search
-            }
-        }
-        // Clears the window's traffic lights.
-        .padding(.leading, 84)
-        .padding(.trailing, 20)
-        .padding(.top, 14)
-        .frame(height: 64)
-    }
-
-    private var tabs: some View {
-        GlassEffectContainer(spacing: 0) {
-            HStack(spacing: 2) {
-                ForEach(AppTab.allCases) { item in
-                    Button { selectTab(item) } label: {
-                        Text(item.title)
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(tab == item && query.isEmpty ? .black : .white.opacity(0.8))
-                            .padding(.horizontal, 18)
-                            .frame(height: 34)
-                            .background {
-                                if tab == item && query.isEmpty {
-                                    Capsule().fill(.white).matchedGeometryEffect(id: "tab", in: selection)
-                                }
-                            }
-                            .contentShape(.capsule)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(4)
-            .glassEffect(.regular, in: .capsule)
-        }
-    }
-
-    private var search: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .bold)).foregroundStyle(.white.opacity(0.7))
-            TextField("Search", text: $query)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .medium))
-                .focused($searching)
-                .onSubmit {}
-            if !query.isEmpty {
-                Button { query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.6))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 14)
-        .frame(width: searching || !query.isEmpty ? 280 : 180, height: 38)
-        .glassEffect(.regular.interactive(), in: .capsule)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: searching)
-        .background {
-            Button("") { searching = true }.keyboardShortcut("f", modifiers: .command).hidden()
-        }
     }
 }
 
@@ -300,16 +228,13 @@ private struct ShelfPage: View {
 }
 
 private struct LibraryPage: View {
+    let section: LibrarySection
+
     @Environment(PlayerStore.self) private var store
-    @AppStorage("librarySection") private var section = LibrarySection.recent
-    @Namespace private var selection
 
     var body: some View {
         Page(id: "library-\(section.rawValue)") {
-            VStack(alignment: .leading, spacing: 18) {
-                PageTitle(title: "Library", subtitle: "Your music")
-                picker.padding(.horizontal, Layout.gutter)
-            }
+            PageTitle(title: section.title, subtitle: "Library")
             switch section {
             case .recent: grid { await store.catalog.recentlyAdded() }
             case .playlists: grid { await store.catalog.libraryPlaylists() }
@@ -320,35 +245,10 @@ private struct LibraryPage: View {
         }
     }
 
-    private var picker: some View {
-        HStack(spacing: 6) {
-            ForEach(LibrarySection.allCases) { item in
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { section = item }
-                } label: {
-                    Text(item.title)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(section == item ? .black : .white.opacity(0.8))
-                        .padding(.horizontal, 14)
-                        .frame(height: 30)
-                        .background {
-                            if section == item {
-                                Capsule().fill(.white).matchedGeometryEffect(id: "section", in: selection)
-                            } else {
-                                Capsule().fill(.white.opacity(0.08))
-                            }
-                        }
-                        .contentShape(.capsule)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
     private func grid(_ load: @escaping () async -> [MediaItem]) -> some View {
         Loading(load: load, isEmpty: { $0.isEmpty }) { items in
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 172, maximum: 210), spacing: 26, alignment: .top)], spacing: 30) {
-                ForEach(items) { ItemTile(item: $0, size: 172) }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 24, alignment: .top)], spacing: 28) {
+                ForEach(items) { ItemTile(item: $0, size: 160) }
             }
             .padding(.horizontal, Layout.gutter)
         }
@@ -681,7 +581,7 @@ private struct SignInView: View {
 
 private struct PlayerDock: View {
     @Binding var showsNowPlaying: Bool
-    @Binding var showsQueue: Bool
+    @Binding var showsSongPanel: Bool
 
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
@@ -762,10 +662,8 @@ private struct PlayerDock: View {
                 .help("Love")
             dockButton("quote.bubble", size: 14, action: openNowPlaying)
                 .help("Lyrics")
-            dockButton("list.bullet", size: 14, dimmed: !showsQueue) {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) { showsQueue.toggle() }
-            }
-            .help("Up Next")
+            dockButton("sidebar.right", size: 14, dimmed: !showsSongPanel) { showsSongPanel.toggle() }
+            .help("Song details, lyrics and Up Next")
             dockButton("pip.enter", size: 14, action: miniPlayer.open)
                 .help("Mini Player")
             Image(systemName: "speaker.wave.2.fill").font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
@@ -820,73 +718,4 @@ private struct RoutePicker: NSViewRepresentable {
     }
 
     func updateNSView(_ view: AVRoutePickerView, context: Context) {}
-}
-
-// MARK: Queue
-
-private struct QueuePanel: View {
-    let close: () -> Void
-
-    @Environment(PlayerStore.self) private var store
-    @State private var entries: [AppleMusicEngine.QueueEntry] = []
-    @State private var position = 0
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Up Next").font(.system(size: 20, weight: .heavy))
-                Spacer()
-                GlassIconButton(symbol: "xmark", size: 30, action: close)
-            }
-            .padding(18)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(entries.filter { $0.index > position }) { entry in
-                        QueueRow(entry: entry) { store.bridge.jump(toQueueIndex: entry.index) }
-                    }
-                    if entries.filter({ $0.index > position }).isEmpty {
-                        Text("Nothing queued")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                            .padding(.horizontal, 18)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 12)
-            }
-            .scrollIndicators(.never)
-        }
-        .glassEffect(.regular, in: .rect(cornerRadius: 26, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
-        .task(id: store.track?.id) {
-            while !Task.isCancelled {
-                (entries, position) = await store.bridge.queue()
-                try? await Task.sleep(for: .seconds(3))
-            }
-        }
-    }
-}
-
-private struct QueueRow: View {
-    let entry: AppleMusicEngine.QueueEntry
-    let play: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Artwork(item: nil, template: entry.artwork, size: 40, cornerRadius: 8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title).font(.system(size: 13, weight: .semibold))
-                Text(entry.artist).font(.system(size: 12)).foregroundStyle(.white.opacity(0.55))
-            }
-            .lineLimit(1)
-            Spacer(minLength: 0)
-        }
-        .padding(8)
-        .background(.white.opacity(isHovered ? 0.07 : 0), in: .rect(cornerRadius: 12, style: .continuous))
-        .contentShape(.rect)
-        .onHover { isHovered = $0 }
-        .onTapGesture(count: 2, perform: play)
-    }
 }

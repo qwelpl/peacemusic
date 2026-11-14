@@ -453,8 +453,8 @@ struct SectionHeader: View {
 }
 
 enum Layout {
-    static let gutter: CGFloat = 44
-    static let topInset: CGFloat = 92
+    static let gutter: CGFloat = 34
+    static let topInset: CGFloat = 64
     static let bottomInset: CGFloat = 130
 }
 
