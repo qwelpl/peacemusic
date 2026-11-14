@@ -595,7 +595,7 @@ struct PageTitle: View {
 }
 
 // Play and Shuffle take their color from the album or playlist they belong to, so they
-// stay put while songs change. Without one, they're amber.
+// stay put while songs change. Without one, they follow the playing song, or amber.
 struct PlayButtons: View {
     static let defaultColor = Color(red: 1, green: 0.74, blue: 0.25)
 
@@ -604,8 +604,13 @@ struct PlayButtons: View {
     let shuffle: () -> Void
 
     @State private var color: Color?
+    @Environment(\.songTheme) private var songTheme
 
-    private var fill: Color { color ?? Self.defaultColor }
+    // Their own cover's color; otherwise the playing song's; otherwise amber.
+    private var fill: Color {
+        if let color { return color }
+        return songTheme == SongTheme() ? Self.defaultColor : songTheme.accent
+    }
     private var label: Color {
         let resolved = NSColor(fill).usingColorSpace(.sRGB) ?? .white
         let luminance = 0.2126 * resolved.redComponent + 0.7152 * resolved.greenComponent + 0.0722 * resolved.blueComponent
