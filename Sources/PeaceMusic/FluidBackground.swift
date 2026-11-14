@@ -5,6 +5,8 @@ struct FluidBackground: View {
     let colors: [Color]
     let trackID: String?
     let isPlaying: Bool
+    // How long a new song's colors take to fade in.
+    var fade: Double = 1.4
 
     var body: some View {
         ZStack {
@@ -18,8 +20,8 @@ struct FluidBackground: View {
                 .blendMode(.overlay)
                 .opacity(0.07)
         }
-        .animation(.easeInOut(duration: 1.4), value: trackID)
-        .animation(.easeInOut(duration: 1.4), value: colors)
+        .animation(.easeInOut(duration: fade), value: trackID)
+        .animation(.easeInOut(duration: fade), value: colors)
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }

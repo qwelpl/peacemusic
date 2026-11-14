@@ -165,14 +165,15 @@ struct BlurredArtwork: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let scale = max(geometry.size.width, geometry.size.height) / 48
             Artwork(item: item, size: 64, cornerRadius: 0)
-                .blur(radius: 10, opaque: true)
-                .scaleEffect(x: geometry.size.width / 54, y: geometry.size.height / 54)
+                .blur(radius: 8, opaque: true)
+                .frame(width: 64, height: 64)
+                .scaleEffect(scale)
                 .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .saturation(1.4)
         .clipped()
-        .drawingGroup()
         .allowsHitTesting(false)
     }
 }
@@ -590,7 +591,10 @@ struct PageTitle: View {
     }
 }
 
+// Play and Shuffle keep one look everywhere, whatever song is playing.
 struct PlayButtons: View {
+    static let playColor = Color(red: 1, green: 0.74, blue: 0.25)
+
     let play: () -> Void
     let shuffle: () -> Void
 
@@ -599,8 +603,10 @@ struct PlayButtons: View {
             Button(action: play) {
                 Label("Play", systemImage: "play.fill")
                     .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.black)
                     .frame(width: 110, height: 40)
-                    .accentFill(in: .capsule)
+                    .background(Self.playColor, in: .capsule)
+                    .shadow(color: Self.playColor.opacity(0.45), radius: 12, y: 4)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
@@ -609,7 +615,7 @@ struct PlayButtons: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 110, height: 40)
-                    .songGlass(in: .capsule, interactive: true)
+                    .glassEffect(.regular.interactive(), in: .capsule)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)

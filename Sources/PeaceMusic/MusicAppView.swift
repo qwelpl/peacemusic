@@ -31,7 +31,7 @@ struct MusicAppView: View {
     @State private var nowPlayingCovers = false
     @AppStorage("showsSongPanel") private var showsSongPanel = true
 
-    private var songTheme: SongTheme { store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors) }
+    @State private var songTheme = SongTheme()
 
     var body: some View {
         ZStack {
@@ -44,7 +44,15 @@ struct MusicAppView: View {
         }
         .environment(\.songTheme, songTheme)
         .tint(songTheme.accent)
-        .animation(.easeInOut(duration: 1.2), value: songTheme)
+        // Only the colors fade. Animating the whole window on a song change dragged every
+        // other change made at the same moment (play button, titles) through the fade too.
+        .onChange(of: store.accentColors) {
+            let next = store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors)
+            withAnimation(.easeInOut(duration: 0.8)) { songTheme = next }
+        }
+        .onChange(of: store.track == nil) {
+            songTheme = store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors)
+        }
         .preferredColorScheme(.dark)
         .onAppear { store.start() }
         .task(id: store.status) {
@@ -167,7 +175,7 @@ private struct AmbientBackground: View {
     var body: some View {
         ZStack {
             // Kept still: a moving backdrop makes every glass panel above it redraw each frame.
-            FluidBackground(colors: store.meshColors, trackID: store.track?.id, isPlaying: false)
+            FluidBackground(colors: store.meshColors, trackID: store.track?.id, isPlaying: false, fade: 0.5)
                 .opacity(0.55)
             // Darker toward the bottom so lists stay easy to read.
             LinearGradient(
