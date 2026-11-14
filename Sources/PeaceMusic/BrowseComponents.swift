@@ -71,8 +71,11 @@ struct Artwork: View {
         .frame(width: size, height: size)
         .clipShape(shape)
         .overlay(shape.stroke(.white.opacity(0.1), lineWidth: 0.5))
-        .shadow(color: (color ?? .black).opacity(glow * 0.55), radius: 10 + glow * 22, y: 6 + glow * 8)
-        .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
+        .shadow(
+            color: glow > 0 ? (color ?? .black).opacity(glow * 0.55) : .black.opacity(0.3),
+            radius: glow > 0 ? 10 + glow * 22 : 5,
+            y: glow > 0 ? 6 + glow * 8 : 3
+        )
         .task(id: url) {
             guard let url else { image = nil; return }
             if let cached = ArtworkCache.shared.image(for: url) {
@@ -96,6 +99,25 @@ struct Artwork: View {
         case .station: "dot.radiowaves.left.and.right"
         default: "music.note"
         }
+    }
+}
+
+// A cover melted into a blur. Blurring a small copy and scaling it up looks the same as
+// blurring a big one and costs a fraction of the drawing.
+struct BlurredArtwork: View {
+    let item: MediaItem
+
+    var body: some View {
+        GeometryReader { geometry in
+            Artwork(item: item, size: 64, cornerRadius: 0)
+                .blur(radius: 10, opaque: true)
+                .scaleEffect(x: geometry.size.width / 54, y: geometry.size.height / 54)
+                .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .saturation(1.4)
+        .clipped()
+        .drawingGroup()
+        .allowsHitTesting(false)
     }
 }
 
@@ -215,7 +237,7 @@ struct ItemTile: View {
 
     var body: some View {
         VStack(alignment: centered ? .center : .leading, spacing: 10) {
-            Artwork(item: item, size: size, cornerRadius: 14, isCircle: centered, glow: isHovered ? 1 : 0.35)
+            Artwork(item: item, size: size, cornerRadius: 14, isCircle: centered, glow: isHovered ? 1 : 0)
                 .overlay(alignment: .bottomTrailing) {
                     if item.isPlayable, isHovered {
                         Button { store.play(item) } label: {
@@ -276,13 +298,8 @@ struct HeroCard: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            GeometryReader { geometry in
-                Artwork(item: item, size: max(geometry.size.width, 1), cornerRadius: 0)
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .blur(radius: 60)
-                    .saturation(1.4)
-                    .overlay(LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.1)], startPoint: .leading, endPoint: .trailing))
-            }
+            BlurredArtwork(item: item)
+                .overlay(LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.1)], startPoint: .leading, endPoint: .trailing))
             HStack(spacing: 32) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(eyebrow)

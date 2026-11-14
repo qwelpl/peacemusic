@@ -14,7 +14,11 @@ final class PlayerStore {
     private(set) var status: BridgeStatus = .loading
 
     private(set) var artwork: NSImage?
-    private(set) var meshColors: [Color] = Palette.fallback
+    private(set) var meshColors: [Color] = Palette.fallback {
+        // Worked out once per song; views read it every frame.
+        didSet { accentColors = Self.accents(from: meshColors) }
+    }
+    private(set) var accentColors: [Color] = PlayerStore.accents(from: Palette.fallback)
     private(set) var lyrics: Lyrics = .none
     private(set) var lyricIndex: Int?
     private(set) var lyricsSource: LyricsSource?

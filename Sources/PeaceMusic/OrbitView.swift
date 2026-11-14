@@ -94,7 +94,7 @@ extension OrbitPulse {
 
 extension PlayerStore {
     // The three most colourful parts of the art, brightened to read on black.
-    var accentColors: [Color] {
+    static func accents(from meshColors: [Color]) -> [Color] {
         let colors = meshColors
             .compactMap { NSColor($0).usingColorSpace(.sRGB) }
             .sorted { $0.saturationComponent > $1.saturationComponent }

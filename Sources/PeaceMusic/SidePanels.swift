@@ -436,7 +436,8 @@ private struct PanelVisualizer: View {
     @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { _ in
+        // Never faster than 30 fps: it sits inside a glass panel that redraws with it.
+        TimelineView(.animation(minimumInterval: max(FrameRate.interval(frameRate, savesBattery: savesBattery), 1.0 / 30), paused: !store.isPlaying)) { _ in
             let spectrum = analyzer.reading.spectrum
             let colors = store.accentColors
             Canvas { context, size in
@@ -452,6 +453,7 @@ private struct PanelVisualizer: View {
                     context.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(color.opacity(0.95)))
                 }
             }
+            .drawingGroup()
         }
         .listensToMusic()
     }

@@ -27,6 +27,8 @@ struct MusicAppView: View {
     @State private var path: [MediaItem] = []
     @State private var query = ""
     @State private var showsNowPlaying = false
+    // True once Now Playing fully covers the window, so the browser underneath can stop drawing.
+    @State private var nowPlayingCovers = false
     @AppStorage("showsSongPanel") private var showsSongPanel = true
 
     var body: some View {
@@ -47,6 +49,7 @@ struct MusicAppView: View {
 
     private var browser: some View {
         ZStack {
+            if !nowPlayingCovers {
             HStack(spacing: 12) {
                 LeftSidebar(destination: $destination, query: $query, select: select)
                     .frame(width: 236)
@@ -58,15 +61,21 @@ struct MusicAppView: View {
                 }
             }
             .padding(12)
+            }
 
             if showsNowPlaying {
-                NowPlayingView(onClose: { withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { showsNowPlaying = false } })
+                NowPlayingView(onClose: closeNowPlaying)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(2)
             }
         }
         .environment(\.openItem, open)
         .onChange(of: query) { if !query.isEmpty { path = [] } }
+        .task(id: showsNowPlaying) {
+            guard showsNowPlaying else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            if showsNowPlaying { nowPlayingCovers = true }
+        }
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: showsSongPanel)
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: store.track == nil)
     }
@@ -126,6 +135,11 @@ struct MusicAppView: View {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { showsNowPlaying = true }
     }
 
+    private func closeNowPlaying() {
+        nowPlayingCovers = false
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { showsNowPlaying = false }
+    }
+
     private func goBack() {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { _ = path.popLast() }
     }
@@ -147,7 +161,8 @@ private struct AmbientBackground: View {
 
     var body: some View {
         ZStack {
-            FluidBackground(colors: store.meshColors, trackID: store.track?.id, isPlaying: store.isPlaying)
+            // Kept still: a moving backdrop makes every glass panel above it redraw each frame.
+            FluidBackground(colors: store.meshColors, trackID: store.track?.id, isPlaying: false)
                 .opacity(0.55)
             // Darker toward the bottom so lists stay easy to read.
             LinearGradient(
@@ -532,16 +547,10 @@ private struct Backdrop: View {
     let item: MediaItem
 
     var body: some View {
-        GeometryReader { geometry in
-            Artwork(item: item, size: 400, cornerRadius: 0)
-                .scaleEffect(x: max(geometry.size.width / 400, 1) * 1.3, y: 1.4)
-                .frame(width: geometry.size.width, height: 520)
-                .blur(radius: 90)
-                .saturation(1.5)
-                .opacity(0.6)
-                .mask(LinearGradient(colors: [.black, .black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom))
-        }
-        .frame(height: 520)
+        BlurredArtwork(item: item)
+            .opacity(0.6)
+            .mask(LinearGradient(colors: [.black, .black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom))
+            .frame(height: 520)
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }

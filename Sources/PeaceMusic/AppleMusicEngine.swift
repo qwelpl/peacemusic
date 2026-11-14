@@ -60,6 +60,20 @@ final class AppleMusicEngine: NSObject {
         }()
         window.contentView = webView
         window.orderBack(nil)
+        setPageHidden(true)
+    }
+
+    // Apple's page keeps animating while it's hidden. Hiding its content stops the drawing
+    // without touching the player underneath.
+    private func setPageHidden(_ hidden: Bool) {
+        let css = hidden ? "html { visibility: hidden !important; } * { animation: none !important; transition: none !important; }" : ""
+        webView?.evaluateJavaScript("""
+        (() => {
+            let style = document.getElementById('peace-hide');
+            if (!style) { style = document.createElement('style'); style.id = 'peace-hide'; document.documentElement.appendChild(style); }
+            style.textContent = \(String(reflecting: css));
+        })();
+        """)
     }
 
     // MARK: Sign in
@@ -79,6 +93,7 @@ final class AppleMusicEngine: NSObject {
             return window
         }()
         window.contentView = webView
+        setPageHidden(false)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         Task { try? await call("await music.authorize()") }
@@ -433,6 +448,7 @@ extension AppleMusicEngine: WKUIDelegate, WKNavigationDelegate, NSWindowDelegate
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView == self.webView, signInWindow?.isVisible != true { setPageHidden(true) }
         Self.logger.notice("loaded: \(webView.url?.absoluteString ?? "-") popup: \(webView != self.webView)")
     }
 
