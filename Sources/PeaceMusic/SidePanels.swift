@@ -62,7 +62,12 @@ struct LeftSidebar: View {
                 .font(.system(size: 13, weight: .medium))
                 .focused($searching)
             if !query.isEmpty {
-                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.5)) }
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.white.opacity(0.5))
+                        .frame(width: 22, height: 22)
+                        .contentShape(.rect)
+                }
                     .buttonStyle(.plain)
             }
         }
@@ -79,7 +84,12 @@ struct LeftSidebar: View {
                     .foregroundStyle(.white.opacity(0.4))
                 Spacer()
                 if let action {
-                    Button(action: action) { Image(systemName: "plus").font(.system(size: 11, weight: .bold)) }
+                    Button(action: action) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                            .frame(width: 24, height: 24)
+                            .contentShape(.rect)
+                    }
                         .buttonStyle(.plain)
                         .foregroundStyle(.white.opacity(0.55))
                         .help("New Playlist")
@@ -244,6 +254,7 @@ struct NowPlayingPanel: View {
     private func link(_ text: String, item: MediaItem?, size: CGFloat, weight: Font.Weight, opacity: Double) -> some View {
         Button { if let item { openItem(item) } } label: {
             Text(text).font(.system(size: size, weight: weight)).foregroundStyle(.white.opacity(opacity)).lineLimit(1)
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .disabled(item == nil)
@@ -313,6 +324,7 @@ struct NowPlayingPanel: View {
                             Spacer()
                             Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.white.opacity(0.4))
                         }
+                        .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
                     if let note = artist.note {

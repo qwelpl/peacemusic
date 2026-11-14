@@ -224,6 +224,7 @@ struct ItemTile: View {
                                 .foregroundStyle(.white)
                                 .frame(width: 40, height: 40)
                                 .glassEffect(.regular.interactive(), in: .circle)
+                                .contentShape(.circle)
                         }
                         .buttonStyle(.plain)
                         .padding(10)
@@ -397,8 +398,13 @@ struct SongRow: View {
                     .opacity(isHovered || isCurrent ? 0.4 : 1)
             }
             if isHovered {
-                Button(action: play) { Image(systemName: "play.fill").font(.system(size: 12, weight: .bold)) }
-                    .buttonStyle(.plain)
+                Button(action: play) {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(width: 40, height: 40)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
             } else if isCurrent {
                 Image(systemName: store.isPlaying ? "waveform" : "speaker.fill")
                     .font(.system(size: 12, weight: .bold))
@@ -520,6 +526,7 @@ struct PlayButtons: View {
                     .frame(width: 110, height: 40)
                     .background(.white, in: .capsule)
                     .foregroundStyle(.black)
+                    .contentShape(.capsule)
             }
             .buttonStyle(.plain)
             Button(action: shuffle) {
@@ -528,6 +535,7 @@ struct PlayButtons: View {
                     .foregroundStyle(.white)
                     .frame(width: 110, height: 40)
                     .glassEffect(.regular.interactive(), in: .capsule)
+                    .contentShape(.capsule)
             }
             .buttonStyle(.plain)
         }
@@ -548,6 +556,7 @@ struct GlassIconButton: View {
                 .frame(width: size, height: size)
                 .background(isOn ? Color.white : .clear, in: .circle)
                 .glassEffect(.regular.interactive(), in: .circle)
+                .contentShape(.circle)
         }
         .buttonStyle(.plain)
     }
@@ -569,11 +578,14 @@ struct Loading<Value, Content: View>: View {
             } else if value != nil {
                 VStack(spacing: 12) {
                     Text("Nothing here yet").font(.system(size: 16, weight: .bold))
-                    Button("Try Again") { self.value = nil; attempt += 1 }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                    Button { self.value = nil; attempt += 1 } label: {
+                        Text("Try Again")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .glassEffect(.regular.interactive(), in: .capsule)
+                            .contentShape(.capsule)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .foregroundStyle(.white.opacity(0.7))
                 .frame(maxWidth: .infinity, minHeight: 320)

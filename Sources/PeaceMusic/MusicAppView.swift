@@ -420,6 +420,7 @@ private struct CollectionPage: View {
                                 .font(.system(size: 14, weight: .bold))
                                 .frame(width: 40, height: 40)
                                 .glassEffect(.regular.interactive(), in: .circle)
+                                .contentShape(.circle)
                         }
                         .menuStyle(.button)
                         .buttonStyle(.plain)
@@ -517,6 +518,7 @@ private struct StationPage: View {
                     .frame(width: 160, height: 44)
                     .background(.white, in: .capsule)
                     .foregroundStyle(.black)
+                    .contentShape(.capsule)
             }
             .buttonStyle(.plain)
         }
@@ -567,6 +569,7 @@ private struct SignInView: View {
                     .frame(width: 160, height: 44)
                     .background(.white, in: .capsule)
                     .foregroundStyle(.black)
+                    .contentShape(.capsule)
             }
             .buttonStyle(.plain)
             .padding(.top, 8)
