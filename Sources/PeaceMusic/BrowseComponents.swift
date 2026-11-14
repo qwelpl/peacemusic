@@ -305,7 +305,7 @@ struct ItemTile: View {
                                 .songGlass(in: .circle, interactive: true)
                                 .contentShape(.circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .padding(10)
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
@@ -327,6 +327,7 @@ struct ItemTile: View {
             .frame(width: size, alignment: centered ? .center : .leading)
         }
         .contentShape(.rect)
+        .clickable()
         .onTapGesture {
             if item.kind == .song { store.play([item], at: 0, in: nil) } else { openItem(item) }
         }
@@ -391,6 +392,7 @@ struct HeroCard: View {
         .clipShape(.rect(cornerRadius: 28, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 0.5))
         .contentShape(.rect)
+        .clickable()
         .onTapGesture { openItem(item) }
         .onHover { hovering in withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { isHovered = hovering } }
         .contextMenu { ItemMenu(item: item) }
@@ -447,7 +449,7 @@ struct SongRow: View {
                 Image(systemName: "ellipsis").frame(width: 34, height: 34).contentShape(.rect)
             }
             .menuStyle(.button)
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .menuIndicator(.hidden)
             .opacity(isHovered ? 1 : 0)
             Text(Self.time(song.duration))
@@ -463,6 +465,7 @@ struct SongRow: View {
         }
         .contentShape(.rect)
         .onHover { hovering in withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering } }
+        .clickable()
         .onTapGesture(count: 2, perform: play)
         .contextMenu { ItemMenu(item: song) }
     }
@@ -481,7 +484,7 @@ struct SongRow: View {
                         .frame(width: 40, height: 40)
                         .contentShape(.rect)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
             } else if isCurrent {
                 Image(systemName: store.isPlaying ? "waveform" : "speaker.fill")
                     .font(.system(size: 12, weight: .bold))
@@ -620,7 +623,7 @@ struct PlayButtons: View {
                     .shadow(color: fill.opacity(0.45), radius: 12, y: 4)
                     .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             Button(action: shuffle) {
                 Label("Shuffle", systemImage: "shuffle")
                     .font(.system(size: 14, weight: .bold))
@@ -629,7 +632,7 @@ struct PlayButtons: View {
                     .glassEffect(.regular.tint(fill.opacity(0.18)).interactive(), in: .capsule)
                     .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
         }
         .task(id: item?.id) {
             guard let url = item?.artworkURL(128) else { color = nil; return }
@@ -657,7 +660,7 @@ struct GlassIconButton: View {
                 .songGlass(in: .circle, interactive: true)
                 .contentShape(.circle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
     }
 }
 
@@ -684,7 +687,7 @@ struct Loading<Value, Content: View>: View {
                             .songGlass(in: .capsule, interactive: true)
                             .contentShape(.capsule)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pointer)
                 }
                 .foregroundStyle(.white.opacity(0.7))
                 .frame(maxWidth: .infinity, minHeight: 320)

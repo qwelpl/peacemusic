@@ -167,7 +167,7 @@ private struct LyricRow: View {
                 .frame(maxWidth: .infinity, alignment: style.isCentered ? .center : .leading)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .onHover { isHovered = $0 }
         .blur(radius: blur)
         .opacity(isActive ? 1 : isHovered ? 0.8 : restingOpacity)

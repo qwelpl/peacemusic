@@ -70,7 +70,7 @@ struct LeftSidebar: View {
                         .frame(width: 30, height: 30)
                         .contentShape(.rect)
                 }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pointer)
             }
         }
         .padding(.horizontal, 12)
@@ -92,7 +92,7 @@ struct LeftSidebar: View {
                             .frame(width: 30, height: 30)
                             .contentShape(.rect)
                     }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .foregroundStyle(.white.opacity(0.55))
                         .help("New Playlist")
                 }
@@ -182,6 +182,7 @@ private struct SidebarButtonStyle: ButtonStyle {
             .background(.white.opacity(isHovered ? 0.06 : 0), in: .rect(cornerRadius: 10, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .onHover { isHovered = $0 }
+            .pointerStyle(.link)
     }
 }
 
@@ -241,7 +242,7 @@ struct NowPlayingPanel: View {
                 .clipShape(.rect(cornerRadius: 18, style: .continuous))
                 .shadow(color: (store.accentColors.first ?? .black).opacity(0.7), radius: 28, y: 12)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .help("Open Now Playing")
             VStack(alignment: .leading, spacing: 3) {
                 Text(store.track?.title ?? "")
@@ -259,7 +260,7 @@ struct NowPlayingPanel: View {
             Text(text).font(.system(size: size, weight: weight)).foregroundStyle(.white.opacity(opacity)).lineLimit(1)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .disabled(item == nil)
     }
 
@@ -291,6 +292,7 @@ struct NowPlayingPanel: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
             .contentShape(.rect)
+            .clickable()
             .onTapGesture {
                 guard !lyricsExpanded else { return }
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { lyricsExpanded = true }
@@ -300,6 +302,7 @@ struct NowPlayingPanel: View {
                     Color.clear
                         .frame(width: 44, height: 40)
                         .contentShape(.rect)
+                        .clickable()
                         .onTapGesture {
                             withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { lyricsExpanded = false }
                         }
@@ -317,6 +320,7 @@ struct NowPlayingPanel: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
             .contentShape(.rect)
+            .clickable()
             .onTapGesture { withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { lyricsExpanded.toggle() } }
         }
     }
@@ -359,7 +363,7 @@ struct NowPlayingPanel: View {
                         }
                         .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pointer)
                     if let note = artist.note {
                         Text(note.strippingTags)
                             .font(.system(size: 12, weight: .medium))
@@ -470,6 +474,7 @@ private struct CompactRow: View {
         .background(.white.opacity(isHovered ? 0.07 : 0), in: .rect(cornerRadius: 10, style: .continuous))
         .contentShape(.rect)
         .onHover { isHovered = $0 }
+        .clickable()
         .onTapGesture(perform: play)
     }
 }
@@ -530,6 +535,7 @@ private struct ExpandedLyrics: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .contentShape(.rect)
+                                .clickable()
                                 .onTapGesture { store.seek(to: max(line.time - store.lyricLead, 0)) }
                                 .id(line.id)
                         }

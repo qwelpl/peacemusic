@@ -384,7 +384,7 @@ private struct SearchPage: View {
                 }
                 .contentShape(.capsule)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
     }
 }
 
@@ -454,7 +454,7 @@ private struct CollectionPage: View {
                                 .contentShape(.circle)
                         }
                         .menuStyle(.button)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .menuIndicator(.hidden)
                     }
                     .padding(.top, 12)
@@ -550,7 +550,7 @@ private struct StationPage: View {
                     .accentFill(in: .capsule)
                     .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(alignment: .top) { Backdrop(item: item) }
@@ -594,7 +594,7 @@ private struct SignInView: View {
                     .accentFill(in: .capsule)
                     .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -659,6 +659,7 @@ private struct PlayerDock: View {
             .lineLimit(1)
         }
         .contentShape(.rect)
+        .clickable()
         .onTapGesture(perform: openNowPlaying)
         .help("Open Now Playing")
     }
@@ -674,7 +675,7 @@ private struct PlayerDock: View {
                     .accentFill(in: .circle)
                     .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             dockButton("forward.fill", size: 16, action: store.next)
             dockButton(store.repeatMode == .one ? "repeat.1" : "repeat", size: 13, dimmed: store.repeatMode == .off, action: store.cycleRepeat)
         }
@@ -738,7 +739,7 @@ private struct PlayerDock: View {
                 .contentShape(.rect)
                 .contentTransition(.symbolEffect(.replace))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
     }
 }
 

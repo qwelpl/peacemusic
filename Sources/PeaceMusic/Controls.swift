@@ -1,5 +1,23 @@
 import SwiftUI
 
+// Like .plain, but shows the pointing hand over the button and dims it a touch when pressed.
+struct PointerButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .pointerStyle(.link)
+    }
+}
+
+extension ButtonStyle where Self == PointerButtonStyle {
+    static var pointer: PointerButtonStyle { PointerButtonStyle() }
+}
+
+extension View {
+    // The pointing hand, for things that act like buttons without being one.
+    func clickable() -> some View { pointerStyle(.link) }
+}
+
 struct Scrubber: View {
     @Environment(\.songTheme) private var songTheme
 
@@ -45,6 +63,7 @@ struct Scrubber: View {
             )
         }
         .frame(height: 20)
+        .clickable()
         .onHover { isHovered = $0 }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: height)
     }
@@ -182,7 +201,7 @@ struct PlayerButton: View {
                 .frame(width: style == .quiet ? 34 : diameter, height: style == .quiet ? 34 : diameter)
                 .contentShape(.circle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
 
         switch style {
         case .regular:
@@ -207,7 +226,7 @@ struct PlayerButton: View {
                 .overlay(Rectangle().strokeBorder(.white.opacity(0.75), lineWidth: 1))
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .onHover { isHovered = $0 }
     }
 }

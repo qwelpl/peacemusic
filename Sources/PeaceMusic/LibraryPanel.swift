@@ -65,7 +65,7 @@ struct LibraryPanel: View {
                 } label: {
                     Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold)).frame(width: 24, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
             }
             Text(isSearching ? "Search" : openPlaylist?.name ?? "Library")
                 .font(theme.font(24, .heavy))
@@ -75,13 +75,13 @@ struct LibraryPanel: View {
                 Button { store.bridge.play(playlistID: openPlaylist.id) } label: {
                     Image(systemName: "play.fill").font(.system(size: 13, weight: .bold)).frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
                 .help("Play playlist")
             }
             Button(action: onClose) {
                 Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
         }
         .foregroundStyle(.white)
     }
@@ -164,7 +164,7 @@ private struct PlaylistRow: View {
             .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(12), style: .continuous))
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .onHover { isHovered = $0 }
         .task(id: playlist.id) {
             let data: Data? = await withCheckedContinuation { continuation in
@@ -206,7 +206,7 @@ private struct TrackRow: View {
             .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(10), style: .continuous))
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .onHover { isHovered = $0 }
     }
 }

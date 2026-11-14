@@ -346,7 +346,7 @@ private struct EmptyStateView: View {
                     .padding(.vertical, 11)
                     .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .themedPanel(theme, cornerRadius: 20)
             .padding(.top, 6)
         }

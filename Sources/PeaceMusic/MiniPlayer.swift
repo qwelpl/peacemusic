@@ -722,7 +722,7 @@ private struct SleeveIcon: View {
                 .frame(width: max(size * 2, 30), height: max(size * 2, 30))
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .foregroundStyle(.white.opacity(isHovering ? 1 : isOn ? 0.85 : 0.4))
         .onHover { isHovering = $0 }
     }
