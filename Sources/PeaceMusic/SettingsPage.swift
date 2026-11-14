@@ -41,7 +41,7 @@ struct SettingsPage: View {
                     account
                 }
                 .padding(.horizontal, Layout.gutter)
-                .frame(maxWidth: 820, alignment: .leading)
+                .frame(maxWidth: 900, alignment: .leading)
             }
             .padding(.top, Layout.topInset)
             .padding(.bottom, Layout.bottomInset)
@@ -236,7 +236,8 @@ private struct Switch: View {
     var body: some View {
         Button { withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { isOn.toggle() } } label: {
             ZStack(alignment: isOn ? .trailing : .leading) {
-                Capsule().fill(isOn ? theme.accent : Color.white.opacity(0.14))
+                // White on white can't show "on", so with nothing playing it's amber.
+                Capsule().fill(isOn ? (theme == SongTheme() ? PlayButtons.defaultColor : theme.accent) : Color.white.opacity(0.14))
                 Circle()
                     .fill(.white)
                     .shadow(color: .black.opacity(0.3), radius: 2, y: 1)

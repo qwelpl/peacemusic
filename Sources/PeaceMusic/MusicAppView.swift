@@ -55,7 +55,10 @@ struct MusicAppView: View {
             songTheme = store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors)
         }
         .preferredColorScheme(.dark)
-        .onAppear { store.start() }
+        .onAppear {
+            store.start()
+            if CommandLine.arguments.contains("--settings") { destination = .settings }
+        }
         .task(id: store.status) {
             if store.status == .ok { await store.refreshLibraryPlaylists() }
         }
