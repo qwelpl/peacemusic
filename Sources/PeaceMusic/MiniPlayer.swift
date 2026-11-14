@@ -3,7 +3,7 @@ import Observation
 import SwiftUI
 
 enum MiniStyle: String, CaseIterable, Identifiable {
-    case disc, sleeve
+    case disc, sleeve, square
 
     static let key = "miniStyle"
 
@@ -12,6 +12,25 @@ enum MiniStyle: String, CaseIterable, Identifiable {
         switch self {
         case .disc: "Disc"
         case .sleeve: "Sleeve"
+        case .square: "Square"
+        }
+    }
+
+    static var current: MiniStyle {
+        MiniStyle(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .disc
+    }
+
+    func size(expanded: Bool) -> NSSize {
+        switch self {
+        case .disc, .sleeve: expanded ? NSSize(width: 430, height: 156) : NSSize(width: 300, height: 72)
+        case .square: expanded ? NSSize(width: 260, height: 260) : NSSize(width: 84, height: 84)
+        }
+    }
+
+    func cornerRadius(expanded: Bool) -> CGFloat {
+        switch self {
+        case .disc, .sleeve: expanded ? 30 : 36
+        case .square: expanded ? 28 : 20
         }
     }
 }
@@ -34,12 +53,11 @@ struct MiniPlayerCorner: Equatable {
 @MainActor
 @Observable
 final class MiniPlayerController {
-    static let compactSize = NSSize(width: 300, height: 72)
-    static let expandedSize = NSSize(width: 430, height: 156)
     static let margin: CGFloat = 24
+    // Big enough for every style, so switching styles never resizes the panel.
     static let panelSize = NSSize(
-        width: expandedSize.width + margin * 2,
-        height: expandedSize.height + margin * 2
+        width: MiniStyle.allCases.map { $0.size(expanded: true).width }.max()! + margin * 2,
+        height: MiniStyle.allCases.map { $0.size(expanded: true).height }.max()! + margin * 2
     )
 
     private(set) var isOpen = false
@@ -181,7 +199,7 @@ final class MiniPlayerController {
         // Panel size is fixed, don't let SwiftUI resize it.
         host.sizingOptions = []
         host.pillSize = { [weak self] in
-            self?.isExpanded == true ? Self.expandedSize : Self.compactSize
+            MiniStyle.current.size(expanded: self?.isExpanded == true)
         }
         host.pillCorner = { [weak self] in self?.corner ?? MiniPlayerCorner() }
         host.onHoverChange = { [weak self] isInside in
@@ -305,7 +323,7 @@ private struct MiniPlayerView: View {
     private var theme: UITheme { UITheme(rawValue: themeRaw) ?? .glass }
     private var style: MiniStyle { MiniStyle(rawValue: styleRaw) ?? .disc }
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: theme.cornerRadius(miniPlayer.isExpanded ? 30 : 36), style: .continuous)
+        RoundedRectangle(cornerRadius: theme.cornerRadius(style.cornerRadius(expanded: miniPlayer.isExpanded)), style: .continuous)
     }
 
     var body: some View {
@@ -344,6 +362,8 @@ private struct MiniPlayerView: View {
                 } else {
                     SleeveCompact().transition(.opacity)
                 }
+            case .square:
+                SquareMini()
             }
         }
         .frame(width: pillSize.width, height: pillSize.height)
@@ -355,7 +375,7 @@ private struct MiniPlayerView: View {
     }
 
     private var pillSize: NSSize {
-        miniPlayer.isExpanded ? MiniPlayerController.expandedSize : MiniPlayerController.compactSize
+        style.size(expanded: miniPlayer.isExpanded)
     }
 }
 
@@ -778,5 +798,89 @@ private struct SleeveExpanded: View {
         .padding(.leading, 14)
         .padding(.trailing, 18)
         .padding(.vertical, 14)
+    }
+}
+
+// MARK: Square
+
+// The cover is the whole player. Expanded, the details sit over its lower half.
+private struct SquareMini: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(MiniPlayerController.self) private var miniPlayer
+    @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
+    @AppStorage("miniShowsLyrics") private var showsLyrics = true
+
+    var body: some View {
+        ZStack {
+            Color.black
+            // Overlay keeps the filled cover from widening the layout.
+            Color.clear.overlay { ArtworkImage(image: store.artwork) }
+                .clipped()
+            if miniPlayer.isExpanded {
+                details.transition(.opacity)
+            } else {
+                VStack {
+                    Spacer()
+                    SleeveProgress(showsTime: false)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 9)
+                }
+                .background(alignment: .bottom) {
+                    LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 30)
+                }
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                Spacer()
+                SleeveIcon(symbol: miniPlayer.isPinned ? "pin.fill" : "pin", size: 10, isOn: miniPlayer.isPinned, action: miniPlayer.togglePinned)
+                    .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
+                SleeveIcon(symbol: "quote.bubble", size: 10, isOn: showsLyrics) { showsLyrics.toggle() }
+                    .help(showsLyrics ? "Hide lyrics" : "Show lyrics")
+                SleeveIcon(symbol: "arrow.up.left.and.arrow.down.right", size: 10, isOn: false, action: miniPlayer.close)
+                    .help("Back to the full player")
+            }
+            Spacer()
+            VStack(alignment: .leading, spacing: 2) {
+                Text(store.track?.title ?? "Nothing playing")
+                    .font(theme.font(15, .bold))
+                    .foregroundStyle(.white)
+                MiniLyricLine(fallback: store.track?.artist ?? "")
+                    .font(lyricFont.font(12, .medium, theme: theme))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .lineLimit(1)
+            .padding(.bottom, 10)
+            SleeveProgress()
+            HStack(spacing: 22) {
+                SleeveIcon(symbol: "backward.fill", size: 13, action: store.previous)
+                SleeveIcon(symbol: store.isPlaying ? "pause.fill" : "play.fill", size: 18, action: store.togglePlayPause)
+                SleeveIcon(symbol: "forward.fill", size: 13, action: store.next)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 56)
+                Spacer()
+                // Blur under the text so bright covers stay readable.
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    LinearGradient(colors: [.black.opacity(0.2), .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
+                }
+                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.35)], startPoint: .top, endPoint: .bottom))
+                .frame(height: 150)
+            }
+        }
     }
 }
