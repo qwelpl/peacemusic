@@ -41,6 +41,10 @@ struct MediaItem: Identifiable, Hashable {
     let album: String
     let note: String?
     let releaseDate: String?
+    let genres: [String]
+    let composer: String?
+    let artistID: String?
+    let albumID: String?
 
     var isPlayable: Bool { kind.queueKey != nil && (playID ?? id).isEmpty == false }
     var queueID: String { playID ?? id }
@@ -84,6 +88,11 @@ struct MediaItem: Identifiable, Hashable {
         let description = attributes["description"] as? [String: Any]
         note = (notes?["short"] ?? notes?["standard"] ?? description?["short"] ?? description?["standard"]) as? String
         releaseDate = attributes["releaseDate"] as? String
+        genres = (attributes["genreNames"] as? [String] ?? []).filter { $0 != "Music" }
+        composer = attributes["composerName"] as? String
+        let relationships = resource["relationships"] as? [String: Any]
+        artistID = ((relationships?["artists"] as? [String: Any])?["data"] as? [[String: Any]])?.first?["id"] as? String
+        albumID = ((relationships?["albums"] as? [String: Any])?["data"] as? [[String: Any]])?.first?["id"] as? String
     }
 
     static func list(_ value: Any?) -> [MediaItem] {
@@ -223,6 +232,34 @@ struct MusicCatalog {
             return items.isEmpty ? nil : Shelf(title: named, items: items)
         }
         return ArtistPage(artist: resource.flatMap(MediaItem.init) ?? item, shelves: shelves)
+    }
+
+    // MARK: Now playing
+
+    struct SongContext {
+        var song: MediaItem
+        var album: MediaItem?
+        var artist: MediaItem?
+        var moreByArtist: [MediaItem]
+    }
+
+    /// The catalog details around a playing song: its album, its artist, and the artist's other hits.
+    func context(forSong id: String) async -> SongContext? {
+        let path = id.hasPrefix("i.") ? "/v1/me/library/songs/\(id)/catalog" : "/v1/catalog/{storefront}/songs/\(id)"
+        let response = await engine.api(path, ["include": "albums,artists"])
+        guard let resource = (response?["data"] as? [[String: Any]])?.first, let song = MediaItem(resource) else { return nil }
+        let relationships = resource["relationships"] as? [String: Any]
+        let album = MediaItem.list(relationships?["albums"]).first
+        var artist = MediaItem.list(relationships?["artists"]).first
+        var more: [MediaItem] = []
+        if let artistID = artist?.id ?? song.artistID {
+            let page = await engine.api("/v1/catalog/{storefront}/artists/\(artistID)", ["views": "top-songs", "extend": "editorialNotes"])
+            let resource = (page?["data"] as? [[String: Any]])?.first
+            artist = resource.flatMap(MediaItem.init) ?? artist
+            let views = resource?["views"] as? [String: Any]
+            more = MediaItem.list(views?["top-songs"]).filter { $0.id != song.id }
+        }
+        return SongContext(song: song, album: album, artist: artist, moreByArtist: Array(more.prefix(6)))
     }
 
     // MARK: Library
