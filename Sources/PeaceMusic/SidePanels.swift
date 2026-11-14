@@ -74,9 +74,8 @@ struct LeftSidebar: View {
     private func group<Content: View>(_ title: String, action: (() -> Void)? = nil, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Text(title.uppercased())
+                Text(title)
                     .font(.system(size: 10, weight: .heavy))
-                    .tracking(1.4)
                     .foregroundStyle(.white.opacity(0.4))
                 Spacer()
                 if let action {
@@ -140,9 +139,8 @@ struct LeftSidebar: View {
                     .symbolEffect(.variableColor.iterative, isActive: store.isPlaying)
                     .foregroundStyle(store.accentColors.first ?? .white)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(store.isPlaying ? "LISTENING" : "PAUSED")
+                    Text(store.isPlaying ? "Listening" : "Paused")
                         .font(.system(size: 9, weight: .heavy))
-                        .tracking(1.2)
                         .foregroundStyle(.white.opacity(0.45))
                     Text(track.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 }
@@ -361,9 +359,8 @@ struct NowPlayingPanel: View {
 
     private func card<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(title.uppercased(), systemImage: symbol)
+            Label(title, systemImage: symbol)
                 .font(.system(size: 10, weight: .heavy))
-                .tracking(1.3)
                 .foregroundStyle(.white.opacity(0.45))
                 .labelStyle(.titleAndIcon)
             content()

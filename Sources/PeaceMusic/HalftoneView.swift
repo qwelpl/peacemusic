@@ -331,9 +331,9 @@ private struct HalftoneHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(store.track?.title.uppercased() ?? "")
+            Text(store.track?.title ?? "")
                 .font(theme.font(15, .bold))
-            Text(store.track?.artist.uppercased() ?? "")
+            Text(store.track?.artist ?? "")
                 .font(theme.font(12))
                 .foregroundStyle(.white.opacity(0.7))
         }
@@ -427,16 +427,16 @@ private struct HalftoneControls: View {
             }
             GlassEffectContainer(spacing: 10) {
                 HStack(spacing: 8) {
-                    PlayerButton(symbol: "backward.fill", title: "PREV", diameter: 40, iconSize: 14, action: store.previous)
+                    PlayerButton(symbol: "backward.fill", title: "Previous", diameter: 40, iconSize: 14, action: store.previous)
                     PlayerButton(
                         symbol: store.isPlaying ? "pause.fill" : "play.fill",
-                        title: store.isPlaying ? "PAUSE" : "PLAY",
+                        title: store.isPlaying ? "Pause" : "Play",
                         diameter: 48,
                         iconSize: 18,
                         monoWidth: 70,
                         action: store.togglePlayPause
                     )
-                    PlayerButton(symbol: "forward.fill", title: "NEXT", diameter: 40, iconSize: 14, action: store.next)
+                    PlayerButton(symbol: "forward.fill", title: "Next", diameter: 40, iconSize: 14, action: store.next)
                 }
             }
         }

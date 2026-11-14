@@ -384,9 +384,8 @@ private struct CollectionPage: View {
             HStack(alignment: .bottom, spacing: 36) {
                 Artwork(item: shown, size: 270, cornerRadius: 20, glow: 1)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(item.kind == .album ? "ALBUM" : "PLAYLIST")
+                    Text(item.kind == .album ? "Album" : "Playlist")
                         .font(.system(size: 11, weight: .bold))
-                        .tracking(1.6)
                         .foregroundStyle(.white.opacity(0.55))
                     Text(shown.title)
                         .font(.system(size: 44, weight: .heavy))
@@ -472,9 +471,8 @@ private struct ArtistPage: View {
             HStack(alignment: .center, spacing: 32) {
                 Artwork(item: artist, size: 210, isCircle: true, glow: 1)
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("ARTIST")
+                    Text("Artist")
                         .font(.system(size: 11, weight: .bold))
-                        .tracking(1.6)
                         .foregroundStyle(.white.opacity(0.55))
                     Text(artist.title)
                         .font(.system(size: 56, weight: .heavy))

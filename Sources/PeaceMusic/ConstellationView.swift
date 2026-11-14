@@ -508,16 +508,16 @@ private struct ConstellationCorner: View {
             ProgressRow()
             GlassEffectContainer(spacing: 10) {
                 HStack(spacing: 8) {
-                    PlayerButton(symbol: "backward.fill", title: "PREV", diameter: 38, iconSize: 13, action: store.previous)
+                    PlayerButton(symbol: "backward.fill", title: "Previous", diameter: 38, iconSize: 13, action: store.previous)
                     PlayerButton(
                         symbol: store.isPlaying ? "pause.fill" : "play.fill",
-                        title: store.isPlaying ? "PAUSE" : "PLAY",
+                        title: store.isPlaying ? "Pause" : "Play",
                         diameter: 46,
                         iconSize: 17,
                         monoWidth: 70,
                         action: store.togglePlayPause
                     )
-                    PlayerButton(symbol: "forward.fill", title: "NEXT", diameter: 38, iconSize: 13, action: store.next)
+                    PlayerButton(symbol: "forward.fill", title: "Next", diameter: 38, iconSize: 13, action: store.next)
                 }
             }
         }

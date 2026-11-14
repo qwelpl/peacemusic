@@ -93,27 +93,27 @@ struct TransportRow: View {
 
     var body: some View {
         HStack(spacing: theme == .glass ? 22 : 6) {
-            PlayerButton(symbol: "shuffle", title: "SHUF", isOn: store.shuffle, style: .quiet, action: store.toggleShuffle)
+            PlayerButton(symbol: "shuffle", title: "Shuffle", isOn: store.shuffle, style: .quiet, action: store.toggleShuffle)
                 .help("Shuffle")
             Spacer(minLength: 0)
             GlassEffectContainer(spacing: 18) {
                 HStack(spacing: theme == .glass ? 14 : 6) {
-                    PlayerButton(symbol: "backward.fill", title: "PREV", diameter: 50, iconSize: 18, action: store.previous)
+                    PlayerButton(symbol: "backward.fill", title: "Previous", diameter: 50, iconSize: 18, action: store.previous)
                     PlayerButton(
                         symbol: store.isPlaying ? "pause.fill" : "play.fill",
-                        title: store.isPlaying ? "PAUSE" : "PLAY",
+                        title: store.isPlaying ? "Pause" : "Play",
                         diameter: 70,
                         iconSize: 27,
                         monoWidth: 70,
                         action: store.togglePlayPause
                     )
-                    PlayerButton(symbol: "forward.fill", title: "NEXT", diameter: 50, iconSize: 18, action: store.next)
+                    PlayerButton(symbol: "forward.fill", title: "Next", diameter: 50, iconSize: 18, action: store.next)
                 }
             }
             Spacer(minLength: 0)
             PlayerButton(
                 symbol: store.repeatMode == .one ? "repeat.1" : "repeat",
-                title: store.repeatMode == .one ? "RPT 1" : "RPT",
+                title: store.repeatMode == .one ? "Repeat 1" : "Repeat",
                 isOn: store.repeatMode != .off,
                 style: .quiet,
                 action: store.cycleRepeat

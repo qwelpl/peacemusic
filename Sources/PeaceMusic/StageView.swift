@@ -160,7 +160,7 @@ private struct StageLayout {
 
     init(text: String, size: CGSize, lyricFont: LyricFont) {
         self.lyricFont = lyricFont
-        let words = text.uppercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        let words = text.split(whereSeparator: \.isWhitespace).map(String.init)
         guard !words.isEmpty, size.width > 0, size.height > 0 else {
             rows = []
             return
@@ -245,16 +245,16 @@ struct StageFooter: View {
                 ProgressRow().frame(width: 280)
                 GlassEffectContainer(spacing: 10) {
                     HStack(spacing: 8) {
-                        PlayerButton(symbol: "backward.fill", title: "PREV", diameter: 40, iconSize: 14, action: store.previous)
+                        PlayerButton(symbol: "backward.fill", title: "Previous", diameter: 40, iconSize: 14, action: store.previous)
                         PlayerButton(
                             symbol: store.isPlaying ? "pause.fill" : "play.fill",
-                            title: store.isPlaying ? "PAUSE" : "PLAY",
+                            title: store.isPlaying ? "Pause" : "Play",
                             diameter: 48,
                             iconSize: 18,
                             monoWidth: 70,
                             action: store.togglePlayPause
                         )
-                        PlayerButton(symbol: "forward.fill", title: "NEXT", diameter: 40, iconSize: 14, action: store.next)
+                        PlayerButton(symbol: "forward.fill", title: "Next", diameter: 40, iconSize: 14, action: store.next)
                     }
                 }
             }

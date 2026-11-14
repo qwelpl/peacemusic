@@ -429,7 +429,7 @@ private struct ExpandedMini: View {
                     Spacer(minLength: 0)
                     PlayerButton(
                         symbol: miniPlayer.isPinned ? "pin.fill" : "pin",
-                        title: "PIN",
+                        title: "Pin",
                         diameter: 26,
                         iconSize: 10,
                         isOn: miniPlayer.isPinned,
@@ -438,7 +438,7 @@ private struct ExpandedMini: View {
                     .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
                     PlayerButton(
                         symbol: "quote.bubble",
-                        title: "LRC",
+                        title: "Lyrics",
                         diameter: 26,
                         iconSize: 10,
                         isOn: showsLyrics,
@@ -447,7 +447,7 @@ private struct ExpandedMini: View {
                     .help(showsLyrics ? "Hide lyrics" : "Show lyrics")
                     PlayerButton(
                         symbol: "arrow.up.left.and.arrow.down.right",
-                        title: "OPEN",
+                        title: "Open",
                         diameter: 26,
                         iconSize: 10,
                         action: miniPlayer.close

@@ -220,7 +220,7 @@ struct NowPlayingView: View {
                 Spacer(minLength: 0)
                 PlayerButton(
                     symbol: store.favorited ? "heart.fill" : "heart",
-                    title: store.favorited ? "LIKED" : "LIKE",
+                    title: store.favorited ? "Liked" : "Like",
                     diameter: 38,
                     iconSize: 15,
                     isOn: store.favorited,
@@ -243,30 +243,30 @@ struct NowPlayingView: View {
         GlassEffectContainer(spacing: 10) {
             HStack(spacing: 8) {
                 if let onClose {
-                    PlayerButton(symbol: "chevron.down", title: "BACK", action: onClose)
+                    PlayerButton(symbol: "chevron.down", title: "Back", action: onClose)
                         .help("Back to your music (Esc)")
                 }
-                PlayerButton(symbol: "music.note.list", title: "LIBRARY", isOn: showsLibrary) {
+                PlayerButton(symbol: "music.note.list", title: "Library", isOn: showsLibrary) {
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { showsLibrary.toggle() }
                 }
                 .help("Library")
-                PlayerButton(symbol: "sparkles", title: "MODE", action: switchMode)
+                PlayerButton(symbol: "sparkles", title: "Mode", action: switchMode)
                     .help("Switch mode (M)")
-                PlayerButton(symbol: "circle.lefthalf.filled", title: "THEME", action: switchTheme)
+                PlayerButton(symbol: "circle.lefthalf.filled", title: "Theme", action: switchTheme)
                     .help("Switch between Liquid Glass and Mono (T)")
                 if mode == .turntable {
                     PlayerButton(
                         symbol: heroStyle == .vinyl ? "photo" : "record.circle",
-                        title: heroStyle == .vinyl ? "COVER" : "VINYL",
+                        title: heroStyle == .vinyl ? "Cover" : "Vinyl",
                         action: toggleHero
                     )
                         .help("Switch between vinyl and cover (V)")
-                    PlayerButton(symbol: "quote.bubble", title: "LYRICS", isOn: showsLyrics) { showsLyrics.toggle() }
+                    PlayerButton(symbol: "quote.bubble", title: "Lyrics", isOn: showsLyrics) { showsLyrics.toggle() }
                         .help("Lyrics (L)")
                 }
-                PlayerButton(symbol: "pip.enter", title: "MINI", action: miniPlayer.open)
+                PlayerButton(symbol: "pip.enter", title: "Mini", action: miniPlayer.open)
                     .help("Mini player (P)")
-                PlayerButton(symbol: "arrow.up.left.and.arrow.down.right", title: "FULL", action: toggleFullScreen)
+                PlayerButton(symbol: "arrow.up.left.and.arrow.down.right", title: "Full", action: toggleFullScreen)
                     .help("Full screen (F)")
             }
         }

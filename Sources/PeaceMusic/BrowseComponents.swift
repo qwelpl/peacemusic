@@ -284,9 +284,8 @@ struct HeroCard: View {
             }
             HStack(spacing: 32) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(eyebrow.uppercased())
+                    Text(eyebrow)
                         .font(.system(size: 11, weight: .bold))
-                        .tracking(1.6)
                         .foregroundStyle(.white.opacity(0.65))
                     Text(item.title)
                         .font(.system(size: 42, weight: .heavy))
@@ -497,9 +496,8 @@ struct PageTitle: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let subtitle {
-                Text(subtitle.uppercased())
+                Text(subtitle)
                     .font(.system(size: 11, weight: .bold))
-                    .tracking(1.6)
                     .foregroundStyle(.white.opacity(0.5))
             }
             Text(title)
