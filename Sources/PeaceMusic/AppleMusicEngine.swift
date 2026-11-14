@@ -395,13 +395,26 @@ final class AppleMusicEngine: NSObject {
 
     private static let bridgeScript = """
     (() => {
+        // MusicKit's currentPlaybackTime is whole seconds; the media element has the exact time.
+        let logged = null;
+        const preciseTime = music => {
+            const rounded = music.currentPlaybackTime || 0;
+            const media = document.querySelector('#apple-music-player') || document.querySelector('audio, video');
+            const exact = media && isFinite(media.currentTime) ? media.currentTime : NaN;
+            const id = music.nowPlayingItem && music.nowPlayingItem.id;
+            if (id && logged !== id && rounded > 2) {
+                logged = id;
+                console.warn('peace time: musickit ' + rounded + ' media ' + exact);
+            }
+            return isFinite(exact) && Math.abs(exact - rounded) < 1.5 ? exact : rounded;
+        };
         const post = () => {
             const music = MusicKit.getInstance();
             const item = music.nowPlayingItem;
             window.webkit.messageHandlers.peace.postMessage({
                 authorized: music.isAuthorized,
                 state: music.playbackState,
-                time: music.currentPlaybackTime || 0,
+                time: preciseTime(music),
                 volume: music.volume,
                 shuffle: music.shuffleMode,
                 repeat: music.repeatMode,
