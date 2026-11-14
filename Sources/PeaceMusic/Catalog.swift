@@ -102,105 +102,127 @@ struct MediaItem: Identifiable, Hashable {
 
 // A titled row of items, as on Home, Browse and Radio.
 struct Shelf: Identifiable {
-    let id = UUID()
+    // Stable across partial loads, so a shelf that's already showing isn't rebuilt.
+    var id: String { title + (items.first?.id ?? "") }
     let title: String
     let items: [MediaItem]
     var isSongs: Bool { items.first?.kind == .song }
 }
 
-// Everything the browsing screens ask Apple Music for.
+// Results that arrive one at a time, kept in the order they were asked for.
+@MainActor
+private final class Slots<T> {
+    var values: [T?]
+    init(_ count: Int) { values = Array(repeating: nil, count: count) }
+    var arrived: [T] { values.compactMap { $0 } }
+}
+
+// Everything the browsing screens ask Apple Music for. Calls that take `update` report
+// what's arrived so far, so pages fill in piece by piece.
 @MainActor
 struct MusicCatalog {
     let engine: AppleMusicEngine
 
-    // MARK: Apple Music
-
-    func home() async -> [Shelf] {
-        async let recent = engine.api("/v1/me/recent/played", ["limit": 10])
-        async let rotation = engine.api("/v1/me/history/heavy-rotation", ["limit": 10])
-        async let recommendations = engine.api("/v1/me/recommendations", ["limit": 12])
-        var shelves: [Shelf] = []
-        let played = MediaItem.list(await recent)
-        if !played.isEmpty { shelves.append(Shelf(title: "Recently Played", items: played)) }
-        let heavy = MediaItem.list(await rotation)
-        if !heavy.isEmpty { shelves.append(Shelf(title: "Heavy Rotation", items: heavy)) }
-        for group in (await recommendations)?["data"] as? [[String: Any]] ?? [] {
-            let attributes = group["attributes"] as? [String: Any]
-            let title = (attributes?["title"] as? [String: Any])?["stringForDisplay"] as? String ?? ""
-            let contents = (group["relationships"] as? [String: Any])?["contents"]
-            let items = MediaItem.list(contents)
-            if !title.isEmpty, !items.isEmpty { shelves.append(Shelf(title: title, items: items)) }
-        }
-        return shelves
-    }
-
-    func browse() async -> [Shelf] {
-        let response = await engine.api("/v1/catalog/{storefront}/charts", ["types": "songs,albums,playlists", "limit": 24])
-        let results = response?["results"] as? [String: Any] ?? [:]
-        var shelves: [Shelf] = []
-        for (key, fallback) in [("songs", "Top Songs"), ("albums", "Top Albums"), ("playlists", "Top Playlists")] {
-            for chart in results[key] as? [[String: Any]] ?? [] {
-                let items = MediaItem.list(chart)
-                if !items.isEmpty { shelves.append(Shelf(title: chart["name"] as? String ?? fallback, items: items)) }
+    /// Runs the loaders side by side and reports each as it lands, in the loaders' order.
+    private func gather<T>(_ loaders: [@MainActor () async -> T], update: @escaping ([T]) -> Void) async -> [T] {
+        let slots = Slots<T>(loaders.count)
+        let tasks = loaders.enumerated().map { index, load in
+            Task { @MainActor in
+                let value = await load()
+                slots.values[index] = value
+                update(slots.arrived)
             }
         }
-        return shelves
+        for task in tasks { await task.value }
+        return slots.arrived
     }
 
-    func radio() async -> [Shelf] {
-        async let live = engine.api("/v1/catalog/{storefront}/stations", ["filter[featured]": "apple-music-live-radio"])
-        async let personal = engine.api("/v1/catalog/{storefront}/stations", ["filter[identity]": "personal"])
-        async let recent = engine.api("/v1/me/recent/radio-stations", ["limit": 10])
-        var shelves: [Shelf] = []
-        let mine = MediaItem.list(await personal)
-        if !mine.isEmpty { shelves.append(Shelf(title: "Your Station", items: mine)) }
-        let broadcasts = MediaItem.list(await live)
-        if !broadcasts.isEmpty { shelves.append(Shelf(title: "Live Radio", items: broadcasts)) }
-        let played = MediaItem.list(await recent)
-        if !played.isEmpty { shelves.append(Shelf(title: "Recently Played Stations", items: played)) }
-        return shelves
+    // MARK: Apple Music
+
+    func home(update: @escaping ([Shelf]) -> Void = { _ in }) async -> [Shelf] {
+        let loaders: [@MainActor () async -> [Shelf]] = [
+            { shelf("Recently Played", await engine.api("/v1/me/recent/played", ["limit": 10])) },
+            { shelf("Heavy Rotation", await engine.api("/v1/me/history/heavy-rotation", ["limit": 10])) },
+            {
+                let response = await engine.api("/v1/me/recommendations", ["limit": 12])
+                return (response?["data"] as? [[String: Any]] ?? []).compactMap { group -> Shelf? in
+                    let attributes = group["attributes"] as? [String: Any]
+                    let title = (attributes?["title"] as? [String: Any])?["stringForDisplay"] as? String ?? ""
+                    let items = MediaItem.list((group["relationships"] as? [String: Any])?["contents"])
+                    return title.isEmpty || items.isEmpty ? nil : Shelf(title: title, items: items)
+                }
+            },
+        ]
+        return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
     }
 
-    func search(_ term: String, inLibrary: Bool) async -> [Shelf] {
-        let response: [String: Any]?
-        let order: [(String, String)]
-        if inLibrary {
-            response = await engine.api("/v1/me/library/search", [
-                "term": term, "types": "library-songs,library-albums,library-artists,library-playlists", "limit": 25,
-            ])
-            order = [("library-songs", "Songs"), ("library-albums", "Albums"), ("library-artists", "Artists"), ("library-playlists", "Playlists")]
-        } else {
-            response = await engine.api("/v1/catalog/{storefront}/search", [
-                "term": term, "types": "songs,albums,artists,playlists,stations", "limit": 20,
-            ])
-            order = [("songs", "Songs"), ("albums", "Albums"), ("artists", "Artists"), ("playlists", "Playlists"), ("stations", "Stations")]
+    func browse(update: @escaping ([Shelf]) -> Void = { _ in }) async -> [Shelf] {
+        let loaders: [@MainActor () async -> [Shelf]] = [("songs", "Top Songs"), ("albums", "Top Albums"), ("playlists", "Top Playlists")].map { key, fallback in
+            {
+                let response = await engine.api("/v1/catalog/{storefront}/charts", ["types": key, "limit": 24])
+                let charts = (response?["results"] as? [String: Any])?[key] as? [[String: Any]] ?? []
+                return charts.compactMap { chart in
+                    let items = MediaItem.list(chart)
+                    return items.isEmpty ? nil : Shelf(title: chart["name"] as? String ?? fallback, items: items)
+                }
+            }
         }
-        let results = response?["results"] as? [String: Any] ?? [:]
-        return order.compactMap { key, title in
-            let items = MediaItem.list(results[key])
-            return items.isEmpty ? nil : Shelf(title: title, items: items)
+        return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
+    }
+
+    func radio(update: @escaping ([Shelf]) -> Void = { _ in }) async -> [Shelf] {
+        let loaders: [@MainActor () async -> [Shelf]] = [
+            { shelf("Your Station", await engine.api("/v1/catalog/{storefront}/stations", ["filter[identity]": "personal"])) },
+            { shelf("Live Radio", await engine.api("/v1/catalog/{storefront}/stations", ["filter[featured]": "apple-music-live-radio"])) },
+            { shelf("Recently Played Stations", await engine.api("/v1/me/recent/radio-stations", ["limit": 10])) },
+        ]
+        return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
+    }
+
+    private func shelf(_ title: String, _ response: [String: Any]?) -> [Shelf] {
+        let items = MediaItem.list(response)
+        return items.isEmpty ? [] : [Shelf(title: title, items: items)]
+    }
+
+    func search(_ term: String, inLibrary: Bool, update: @escaping ([Shelf]) -> Void = { _ in }) async -> [Shelf] {
+        let kinds: [(String, String)] = inLibrary
+            ? [("library-songs", "Songs"), ("library-albums", "Albums"), ("library-artists", "Artists"), ("library-playlists", "Playlists")]
+            : [("songs", "Songs"), ("albums", "Albums"), ("artists", "Artists"), ("playlists", "Playlists"), ("stations", "Stations")]
+        let path = inLibrary ? "/v1/me/library/search" : "/v1/catalog/{storefront}/search"
+        // One request per kind, so songs can show before artists come back.
+        let loaders: [@MainActor () async -> [Shelf]] = kinds.map { key, title in
+            {
+                let response = await engine.api(path, ["term": term, "types": key, "limit": inLibrary ? 25 : 20])
+                let items = MediaItem.list((response?["results"] as? [String: Any])?[key])
+                return items.isEmpty ? [] : [Shelf(title: title, items: items)]
+            }
         }
+        return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
     }
 
     // MARK: Pages
 
-    /// An album's or playlist's details and tracks.
-    func collection(_ item: MediaItem) async -> (MediaItem, [MediaItem]) {
+    /// An album's or playlist's details and tracks. Tracks arrive a page at a time.
+    func collection(_ item: MediaItem, update: @escaping (MediaItem, [MediaItem]) -> Void = { _, _ in }) async -> (MediaItem, [MediaItem]) {
         let type = item.kind == .album ? "albums" : "playlists"
         let path = item.isLibrary ? "/v1/me/library/\(type)/\(item.id)" : "/v1/catalog/{storefront}/\(type)/\(item.id)"
         let response = await engine.api(path, ["include": "tracks"])
         let resource = (response?["data"] as? [[String: Any]])?.first
         let detail = resource.flatMap(MediaItem.init) ?? item
-        var tracks = MediaItem.list((resource?["relationships"] as? [String: Any])?["tracks"])
-        // Long playlists come back a page at a time.
-        var next = ((resource?["relationships"] as? [String: Any])?["tracks"] as? [String: Any])?["next"] as? String
+        let relationship = (resource?["relationships"] as? [String: Any])?["tracks"] as? [String: Any]
+        var tracks = MediaItem.list(relationship)
+        update(detail, tracks)
+        var next = relationship?["next"] as? String
         while let page = next, tracks.count < 1000 {
             let more = await engine.api(page, ["limit": 100])
-            tracks += MediaItem.list(more)
+            let found = MediaItem.list(more)
+            guard !found.isEmpty else { break }
+            tracks += found
+            update(detail, tracks)
             next = more?["next"] as? String
         }
         if item.isLibrary, item.kind == .playlist, tracks.isEmpty {
-            tracks = await pages("/v1/me/library/playlists/\(item.id)/tracks", limit: 1000)
+            tracks = await pages("/v1/me/library/playlists/\(item.id)/tracks", limit: 1000) { update(detail, $0) }
         }
         return (detail, tracks)
     }
@@ -210,28 +232,41 @@ struct MusicCatalog {
         var shelves: [Shelf]
     }
 
-    func artist(_ item: MediaItem) async -> ArtistPage {
+    private static let artistViews = [
+        ("latest-release", "Latest Release"), ("top-songs", "Top Songs"), ("full-albums", "Albums"),
+        ("singles", "Singles & EPs"), ("live-albums", "Live Albums"), ("compilation-albums", "Compilations"),
+        ("appears-on-albums", "Appears On"), ("top-music-videos", "Music Videos"), ("similar-artists", "Similar Artists"),
+    ]
+
+    /// The artist first, then each section of their page as it loads.
+    func artist(_ item: MediaItem, update: @escaping (ArtistPage) -> Void = { _ in }) async -> ArtistPage {
         if item.isLibrary {
-            let albums = await pages("/v1/me/library/artists/\(item.id)/albums", limit: 300)
+            update(ArtistPage(artist: item, shelves: []))
+            let albums = await pages("/v1/me/library/artists/\(item.id)/albums", limit: 300) { albums in
+                update(ArtistPage(artist: item, shelves: [Shelf(title: "Albums", items: albums)]))
+            }
             return ArtistPage(artist: item, shelves: albums.isEmpty ? [] : [Shelf(title: "Albums", items: albums)])
         }
-        let response = await engine.api("/v1/catalog/{storefront}/artists/\(item.id)", [
-            "views": "top-songs,latest-release,full-albums,singles,live-albums,compilation-albums,appears-on-albums,top-music-videos,similar-artists",
-        ])
-        let resource = (response?["data"] as? [[String: Any]])?.first
-        let views = resource?["views"] as? [String: Any] ?? [:]
-        let order = [
-            ("latest-release", "Latest Release"), ("top-songs", "Top Songs"), ("full-albums", "Albums"),
-            ("singles", "Singles & EPs"), ("live-albums", "Live Albums"), ("compilation-albums", "Compilations"),
-            ("appears-on-albums", "Appears On"), ("top-music-videos", "Music Videos"), ("similar-artists", "Similar Artists"),
-        ]
-        let shelves = order.compactMap { key, title -> Shelf? in
-            let view = views[key] as? [String: Any]
-            let items = MediaItem.list(view)
-            let named = ((view?["attributes"] as? [String: Any])?["title"] as? String) ?? title
-            return items.isEmpty ? nil : Shelf(title: named, items: items)
+        let page = Slots<MediaItem>(1)
+        page.values[0] = item
+        var shelves: [Shelf] = []
+        let header: @MainActor () async -> [Shelf] = {
+            let response = await engine.api("/v1/catalog/{storefront}/artists/\(item.id)", ["extend": "editorialNotes"])
+            if let artist = (response?["data"] as? [[String: Any]])?.first.flatMap(MediaItem.init) { page.values[0] = artist }
+            return []
         }
-        return ArtistPage(artist: resource.flatMap(MediaItem.init) ?? item, shelves: shelves)
+        let views: [@MainActor () async -> [Shelf]] = Self.artistViews.map { key, title in
+            {
+                let response = await engine.api("/v1/catalog/{storefront}/artists/\(item.id)/view/\(key)", ["limit": 20])
+                let items = MediaItem.list(response)
+                let named = (response?["attributes"] as? [String: Any])?["title"] as? String ?? title
+                return items.isEmpty ? [] : [Shelf(title: named, items: items)]
+            }
+        }
+        shelves = await gather([header] + views) { arrived in
+            update(ArtistPage(artist: page.values[0] ?? item, shelves: arrived.flatMap { $0 }))
+        }.flatMap { $0 }
+        return ArtistPage(artist: page.values[0] ?? item, shelves: shelves)
     }
 
     // MARK: Now playing
@@ -243,37 +278,54 @@ struct MusicCatalog {
         var moreByArtist: [MediaItem]
     }
 
-    /// The catalog details around a playing song: its album, its artist, and the artist's other hits.
-    func context(forSong id: String) async -> SongContext? {
+    /// The catalog details around a playing song: the song and album first, then the artist
+    /// and their other hits.
+    func context(forSong id: String, update: @escaping (SongContext) -> Void = { _ in }) async -> SongContext? {
         let path = id.hasPrefix("i.") ? "/v1/me/library/songs/\(id)/catalog" : "/v1/catalog/{storefront}/songs/\(id)"
         let response = await engine.api(path, ["include": "albums,artists"])
         guard let resource = (response?["data"] as? [[String: Any]])?.first, let song = MediaItem(resource) else { return nil }
         let relationships = resource["relationships"] as? [String: Any]
-        let album = MediaItem.list(relationships?["albums"]).first
-        var artist = MediaItem.list(relationships?["artists"]).first
-        var more: [MediaItem] = []
-        if let artistID = artist?.id ?? song.artistID {
+        var context = SongContext(
+            song: song,
+            album: MediaItem.list(relationships?["albums"]).first,
+            artist: MediaItem.list(relationships?["artists"]).first,
+            moreByArtist: []
+        )
+        update(context)
+        if let artistID = context.artist?.id ?? song.artistID {
             let page = await engine.api("/v1/catalog/{storefront}/artists/\(artistID)", ["views": "top-songs", "extend": "editorialNotes"])
             let resource = (page?["data"] as? [[String: Any]])?.first
-            artist = resource.flatMap(MediaItem.init) ?? artist
+            context.artist = resource.flatMap(MediaItem.init) ?? context.artist
             let views = resource?["views"] as? [String: Any]
-            more = MediaItem.list(views?["top-songs"]).filter { $0.id != song.id }
+            context.moreByArtist = Array(MediaItem.list(views?["top-songs"]).filter { $0.id != song.id }.prefix(6))
+            update(context)
         }
-        return SongContext(song: song, album: album, artist: artist, moreByArtist: Array(more.prefix(6)))
+        return context
     }
 
     // MARK: Library
 
-    func recentlyAdded() async -> [MediaItem] {
-        await pages("/v1/me/library/recently-added", limit: 100, pageSize: 25)
+    func recentlyAdded(update: @escaping ([MediaItem]) -> Void = { _ in }) async -> [MediaItem] {
+        await pages("/v1/me/library/recently-added", limit: 100, pageSize: 25, update: update)
     }
 
-    func libraryAlbums() async -> [MediaItem] { await pages("/v1/me/library/albums", limit: 2000) }
-    func libraryArtists() async -> [MediaItem] { await pages("/v1/me/library/artists", limit: 2000) }
-    func librarySongs() async -> [MediaItem] { await pages("/v1/me/library/songs", limit: 5000) }
-    func libraryPlaylists() async -> [MediaItem] { await pages("/v1/me/library/playlists", limit: 500) }
+    func libraryAlbums(update: @escaping ([MediaItem]) -> Void = { _ in }) async -> [MediaItem] {
+        await pages("/v1/me/library/albums", limit: 2000, update: update)
+    }
 
-    private func pages(_ path: String, limit: Int, pageSize: Int = 100) async -> [MediaItem] {
+    func libraryArtists(update: @escaping ([MediaItem]) -> Void = { _ in }) async -> [MediaItem] {
+        await pages("/v1/me/library/artists", limit: 2000, update: update)
+    }
+
+    func librarySongs(update: @escaping ([MediaItem]) -> Void = { _ in }) async -> [MediaItem] {
+        await pages("/v1/me/library/songs", limit: 5000, update: update)
+    }
+
+    func libraryPlaylists(update: @escaping ([MediaItem]) -> Void = { _ in }) async -> [MediaItem] {
+        await pages("/v1/me/library/playlists", limit: 500, update: update)
+    }
+
+    private func pages(_ path: String, limit: Int, pageSize: Int = 100, update: @escaping ([MediaItem]) -> Void = { _ in }) async -> [MediaItem] {
         var items: [MediaItem] = []
         var next: String? = path
         var parameters: [String: Any] = ["limit": pageSize]
@@ -281,6 +333,7 @@ struct MusicCatalog {
             guard let response = await engine.api(page, parameters) else { break }
             let found = MediaItem.list(response)
             items += found
+            if !found.isEmpty { update(items) }
             next = found.isEmpty ? nil : response["next"] as? String
             // "next" already carries the paging parameters.
             parameters = [:]

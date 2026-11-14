@@ -217,7 +217,9 @@ struct NowPlayingPanel: View {
         .task(id: store.track?.id) {
             context = nil
             guard let id = store.track?.id else { return }
-            let loaded = await store.catalog.context(forSong: id)
+            let loaded = await store.catalog.context(forSong: id) { partial in
+                withAnimation(.easeOut(duration: 0.3)) { context = partial }
+            }
             withAnimation(.easeOut(duration: 0.3)) { context = loaded }
         }
         .task(id: store.track?.id) {

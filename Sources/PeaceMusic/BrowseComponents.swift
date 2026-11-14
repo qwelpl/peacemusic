@@ -671,7 +671,8 @@ struct GlassIconButton: View {
 
 // Loads once, shows a spinner meanwhile and a retry button if nothing came back.
 struct Loading<Value, Content: View>: View {
-    let load: () async -> Value
+    // Calls its argument with partial results as they arrive, then returns the whole thing.
+    let load: (_ update: @escaping (Value) -> Void) async -> Value
     var isEmpty: (Value) -> Bool = { _ in false }
     @ViewBuilder let content: (Value) -> Content
 
@@ -702,8 +703,11 @@ struct Loading<Value, Content: View>: View {
         }
         .task(id: attempt) {
             guard value == nil else { return }
-            let loaded = await load()
-            withAnimation(.easeOut(duration: 0.35)) { value = loaded }
+            let loaded = await load { partial in
+                guard !isEmpty(partial) else { return }
+                withAnimation(.easeOut(duration: 0.3)) { value = partial }
+            }
+            withAnimation(.easeOut(duration: 0.3)) { value = loaded }
         }
     }
 }

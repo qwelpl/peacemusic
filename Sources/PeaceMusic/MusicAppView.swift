@@ -126,8 +126,8 @@ struct MusicAppView: View {
             } else {
                 switch destination {
                 case .home: HomePage().transition(.opacity)
-                case .new: ShelfPage(title: "New", subtitle: "Charts and releases", id: "new") { await store.catalog.browse() }.transition(.opacity)
-                case .radio: ShelfPage(title: "Radio", subtitle: "Stations and live shows", id: "radio") { await store.catalog.radio() }.transition(.opacity)
+                case .new: ShelfPage(title: "New", subtitle: "Charts and releases", id: "new") { await store.catalog.browse(update: $0) }.transition(.opacity)
+                case .radio: ShelfPage(title: "Radio", subtitle: "Stations and live shows", id: "radio") { await store.catalog.radio(update: $0) }.transition(.opacity)
                 case .library(let section): LibraryPage(section: section).transition(.opacity)
                 case .playlist(let item): DetailPage(item: item).id(item.id).transition(.opacity)
                 }
@@ -212,7 +212,7 @@ private struct HomePage: View {
     var body: some View {
         Page(id: "home") {
             PageTitle(title: greeting, subtitle: Date().formatted(.dateTime.weekday(.wide).month().day()))
-            Loading(load: { await store.catalog.home() }, isEmpty: { $0.isEmpty }) { shelves in
+            Loading(load: { await store.catalog.home(update: $0) }, isEmpty: { $0.isEmpty }) { shelves in
                 VStack(alignment: .leading, spacing: 44) {
                     let recent = shelves.first { $0.title == "Recently Played" }?.items ?? []
                     if let feature = recent.first ?? shelves.first?.items.first {
@@ -238,7 +238,7 @@ private struct ShelfPage: View {
     let title: String
     let subtitle: String
     let id: String
-    let load: () async -> [Shelf]
+    let load: (_ update: @escaping ([Shelf]) -> Void) async -> [Shelf]
 
     var body: some View {
         Page(id: id) {
@@ -265,16 +265,16 @@ private struct LibraryPage: View {
         Page(id: "library-\(section.rawValue)") {
             PageTitle(title: section.title, subtitle: "Library")
             switch section {
-            case .recent: grid { await store.catalog.recentlyAdded() }
-            case .playlists: grid { await store.catalog.libraryPlaylists() }
-            case .albums: grid { await store.catalog.libraryAlbums() }
-            case .artists: grid { await store.catalog.libraryArtists() }
+            case .recent: grid { await store.catalog.recentlyAdded(update: $0) }
+            case .playlists: grid { await store.catalog.libraryPlaylists(update: $0) }
+            case .albums: grid { await store.catalog.libraryAlbums(update: $0) }
+            case .artists: grid { await store.catalog.libraryArtists(update: $0) }
             case .songs: LibrarySongs()
             }
         }
     }
 
-    private func grid(_ load: @escaping () async -> [MediaItem]) -> some View {
+    private func grid(_ load: @escaping (_ update: @escaping ([MediaItem]) -> Void) async -> [MediaItem]) -> some View {
         Loading(load: load, isEmpty: { $0.isEmpty }) { items in
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 24, alignment: .top)], spacing: 28) {
                 ForEach(items) { ItemTile(item: $0, size: 160) }
@@ -289,7 +289,7 @@ private struct LibrarySongs: View {
     @State private var filter = ""
 
     var body: some View {
-        Loading(load: { await store.catalog.librarySongs() }, isEmpty: { $0.isEmpty }) { songs in
+        Loading(load: { await store.catalog.librarySongs(update: $0) }, isEmpty: { $0.isEmpty }) { songs in
             let shown = filter.isEmpty ? songs : songs.filter {
                 $0.title.localizedCaseInsensitiveContains(filter) || $0.subtitle.localizedCaseInsensitiveContains(filter)
                     || $0.album.localizedCaseInsensitiveContains(filter)
@@ -325,6 +325,7 @@ private struct SearchPage: View {
     @Environment(PlayerStore.self) private var store
     @State private var inLibrary = false
     @State private var shelves: [Shelf]?
+    @State private var searchDone = false
     @Namespace private var selection
 
     var body: some View {
@@ -341,7 +342,7 @@ private struct SearchPage: View {
                 .padding(.trailing, Layout.gutter)
             }
             if let shelves {
-                if shelves.isEmpty {
+                if shelves.isEmpty && searchDone {
                     Text("Nothing matched. Try another spelling.")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white.opacity(0.55))
@@ -364,9 +365,14 @@ private struct SearchPage: View {
         .task(id: "\(query)|\(inLibrary)") {
             try? await Task.sleep(for: .milliseconds(260))
             guard !Task.isCancelled else { return }
-            let found = await store.catalog.search(query, inLibrary: inLibrary)
+            searchDone = false
+            let found = await store.catalog.search(query, inLibrary: inLibrary) { partial in
+                guard !Task.isCancelled, !partial.isEmpty else { return }
+                withAnimation(.easeOut(duration: 0.25)) { shelves = partial }
+            }
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.25)) { shelves = found }
+            searchDone = true
         }
     }
 
@@ -471,7 +477,12 @@ private struct CollectionPage: View {
         }
         .background(alignment: .top) { Backdrop(item: shown) }
         .task(id: item.id) {
-            let (loaded, songs) = await store.catalog.collection(item)
+            let (loaded, songs) = await store.catalog.collection(item) { partial, partialTracks in
+                withAnimation(.easeOut(duration: 0.3)) {
+                    detail = partial
+                    tracks = partialTracks
+                }
+            }
             withAnimation(.easeOut(duration: 0.3)) {
                 detail = loaded
                 tracks = songs
@@ -525,7 +536,9 @@ private struct ArtistPage: View {
         }
         .background(alignment: .top) { Backdrop(item: artist) }
         .task(id: item.id) {
-            let loaded = await store.catalog.artist(item)
+            let loaded = await store.catalog.artist(item) { partial in
+                withAnimation(.easeOut(duration: 0.3)) { page = partial }
+            }
             withAnimation(.easeOut(duration: 0.3)) { page = loaded }
         }
     }
