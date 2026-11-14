@@ -89,6 +89,10 @@ struct MusicAppView: View {
         .environment(\.openItem, open)
         .environment(\.menuPresenter, menus)
         .onChange(of: query) { if !query.isEmpty { path = [] } }
+        .onReceive(NotificationCenter.default.publisher(for: .peaceOpenSettings)) { _ in
+            if showsNowPlaying { closeNowPlaying() }
+            select(.settings)
+        }
         .task(id: showsNowPlaying) {
             guard showsNowPlaying else { return }
             try? await Task.sleep(for: .milliseconds(600))
@@ -135,6 +139,7 @@ struct MusicAppView: View {
                 case .radio: ShelfPage(title: "Radio", subtitle: "Stations and live shows", id: "radio") { await store.catalog.radio(update: $0) }.transition(.opacity)
                 case .library(let section): LibraryPage(section: section).transition(.opacity)
                 case .playlist(let item): DetailPage(item: item).id(item.id).transition(.opacity)
+                case .settings: SettingsPage().transition(.opacity)
                 }
             }
         }

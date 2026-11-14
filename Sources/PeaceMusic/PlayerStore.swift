@@ -252,6 +252,7 @@ final class PlayerStore {
     }
 
     func signIn() { bridge.showSignIn() }
+    func signOut() { bridge.signOut() }
 
     // MARK: Library
 

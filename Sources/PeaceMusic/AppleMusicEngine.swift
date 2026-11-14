@@ -99,6 +99,12 @@ final class AppleMusicEngine: NSObject {
         Task { try? await call("await music.authorize()") }
     }
 
+    func signOut() {
+        send("await music.unauthorize()")
+        status = .signedOut
+        onChange()
+    }
+
     private func finishSignIn() {
         guard let window = signInWindow, window.isVisible else { return }
         window.orderOut(nil)

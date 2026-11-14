@@ -36,6 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func openSettings() {
+        if miniPlayer.isOpen { miniPlayer.close() } else { miniPlayer.showMainWindow() }
+        NotificationCenter.default.post(name: .peaceOpenSettings, object: nil)
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
@@ -59,6 +64,7 @@ struct PeaceApp: App {
         Window("Peace", id: "main") {
             MusicAppView()
                 .environment(delegate.store)
+                .environment(delegate.displays)
                 .environment(delegate.miniPlayer)
                 .environment(\.musicAnalyzer, delegate.analyzer)
                 .frame(minWidth: 900, minHeight: 620)
@@ -70,6 +76,11 @@ struct PeaceApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1280, height: 800)
         .commands {
+            // ⌘, opens Peace's own Settings page instead of a separate macOS window.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { delegate.openSettings() }
+                    .keyboardShortcut(",")
+            }
             CommandGroup(after: .windowArrangement) {
                 Button("Mini Player") { delegate.miniPlayer.toggle() }
                     .keyboardShortcut("m", modifiers: [.command, .shift])
@@ -77,28 +88,19 @@ struct PeaceApp: App {
         }
 
         MenuBarExtra("Peace", systemImage: "music.note") {
-            MenuBarMenu()
+            MenuBarMenu(openSettings: delegate.openSettings)
                 .environment(delegate.store)
                 .environment(delegate.miniPlayer)
-                .environment(delegate.displays)
                 .connectMainWindow(to: delegate.miniPlayer)
         }
     }
 }
 
+// The menu bar keeps only quick controls; everything else lives in Peace's Settings page.
 private struct MenuBarMenu: View {
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
-    @AppStorage("miniShowsLyrics") private var miniShowsLyrics = true
-    @AppStorage(MiniStyle.key) private var miniStyleRaw = MiniStyle.disc.rawValue
-    @Environment(DisplayPicker.self) private var displays
-    @AppStorage(LyricSettings.styleKey) private var styleRaw = LyricStyle.classic.rawValue
-    @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
-    @AppStorage(LyricSettings.scaleKey) private var lyricScale = 1.0
-    @AppStorage(LyricColorSlot.autoSyncKey) private var colorAutoSync = false
-    @AppStorage(ScreenAwake.key) private var keepsScreenAwake = false
-    @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
-    @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
+    let openSettings: () -> Void
 
     var body: some View {
         if let track = store.track {
@@ -110,77 +112,13 @@ private struct MenuBarMenu: View {
         Button("Next", action: store.next)
         Button("Previous", action: store.previous)
         Divider()
-        Section("Style") {
-            Picker("Style", selection: $styleRaw) {
-                ForEach(LyricStyle.allCases) { Text($0.title).tag($0.rawValue) }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
-        }
-        Divider()
         Button("Show Peace", action: miniPlayer.showMainWindow)
         Button(miniPlayer.isOpen ? "Hide Mini Player" : "Show Mini Player", action: miniPlayer.toggle)
-        Toggle("Keep Mini Player Expanded", isOn: Binding(get: { miniPlayer.isPinned }, set: { _ in miniPlayer.togglePinned() }))
-        Toggle("Lyrics in Mini Player", isOn: $miniShowsLyrics)
-        Picker("Mini Player Style", selection: $miniStyleRaw) {
-            ForEach(MiniStyle.allCases) { Text($0.title).tag($0.rawValue) }
-        }
-        Toggle("Keep Screen Awake", isOn: $keepsScreenAwake)
-        Toggle("Show Mini Player on All Spaces", isOn: Binding(get: { miniPlayer.isOnAllSpaces }, set: { _ in miniPlayer.toggleAllSpaces() }))
         Divider()
-        Section("Font") {
-            Picker("Font", selection: $fontRaw) {
-                ForEach(LyricFont.allCases) { Text($0.title).tag($0.rawValue) }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
-        }
-        Divider()
-        Section("Text Size · \(Int((lyricScale * 100).rounded()))%") {
-            Button("Larger") { setLyricScale(lyricScale + LyricSettings.scaleStep) }
-                .keyboardShortcut("+")
-                .disabled(lyricScale >= LyricSettings.scaleRange.upperBound)
-            Button("Smaller") { setLyricScale(lyricScale - LyricSettings.scaleStep) }
-                .keyboardShortcut("-")
-                .disabled(lyricScale <= LyricSettings.scaleRange.lowerBound)
-            Button("Reset") { setLyricScale(1) }
-                .keyboardShortcut("0")
-                .disabled(lyricScale == 1)
-        }
-        Divider()
-        if displays.names.count > 1 {
-            Section("Display") {
-                Picker("Display", selection: Binding(get: { displays.selected }, set: displays.select)) {
-                    ForEach(displays.names, id: \.self) { Text($0).tag($0) }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-            }
-            Divider()
-        }
-        Section("Frame Rate") {
-            Picker("Frame Rate", selection: $frameRate) {
-                ForEach(FrameRate.choices, id: \.self) { Text("\($0) fps").tag($0) }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
-            Toggle("Halve on Battery", isOn: $savesBattery)
-        }
-        Divider()
-        Section("Color") {
-            Toggle("Auto Sync", isOn: $colorAutoSync)
-            ForEach(LyricColorSlot.allCases) { slot in
-                Button("\(slot.title)…") { LyricColorPanel.shared.edit(slot) }
-            }
-            Button("Reset Colors", action: LyricColorSlot.reset)
-        }
-        Divider()
+        Button("Settings…", action: openSettings)
+            .keyboardShortcut(",")
         Button("Quit Peace") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
-    }
-
-    private func setLyricScale(_ scale: Double) {
-        lyricScale = LyricSettings.clampedScale(scale)
     }
 }
 

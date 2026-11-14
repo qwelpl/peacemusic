@@ -4,6 +4,7 @@ enum Destination: Hashable {
     case home, new, radio
     case library(LibrarySection)
     case playlist(MediaItem)
+    case settings
 }
 
 // MARK: Left
@@ -48,6 +49,10 @@ struct LeftSidebar: View {
                 .padding(.bottom, 16)
             }
             .scrollIndicators(.never)
+            row("Settings", "gearshape.fill", .settings)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5) }
             listening
         }
         .songGlass(in: .rect(cornerRadius: 24, style: .continuous))
