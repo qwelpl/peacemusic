@@ -342,37 +342,36 @@ private struct EmptyStateView: View {
     }
 
     private var icon: String {
-        store.status == .notAuthorized ? "lock.fill" : "music.note"
+        store.status == .signedOut ? "person.crop.circle" : "music.note"
     }
 
     private var title: String {
         switch store.status {
-        case .notAuthorized: "Peace needs permission"
-        case .musicNotRunning: "Music isn't open"
+        case .signedOut: "Sign in to Apple Music"
+        case .loading: "Connecting to Apple Music"
         case .ok: "Nothing playing"
         }
     }
 
     private var message: String {
         switch store.status {
-        case .notAuthorized: "Allow Peace to control Music in System Settings, under Privacy & Security > Automation."
-        case .musicNotRunning: "Peace plays through the Music app. Open it and your song shows up here."
+        case .signedOut: "Peace plays Apple Music itself. Sign in once with your Apple Account and it stays signed in."
+        case .loading: "One moment."
         case .ok: "Pick something from your library to get started."
         }
     }
 
     private var buttonTitle: String {
         switch store.status {
-        case .notAuthorized: "Open System Settings"
-        case .musicNotRunning: "Open Music"
+        case .signedOut: "Sign In"
+        case .loading: "Sign In"
         case .ok: "Browse Library"
         }
     }
 
     private func action() {
         switch store.status {
-        case .notAuthorized: store.openAutomationSettings()
-        case .musicNotRunning: store.openMusic()
+        case .signedOut, .loading: store.signIn()
         case .ok: openLibrary()
         }
     }

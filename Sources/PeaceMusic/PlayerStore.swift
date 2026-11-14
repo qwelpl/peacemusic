@@ -11,7 +11,7 @@ final class PlayerStore {
     private(set) var shuffle = false
     private(set) var repeatMode: RepeatMode = .off
     private(set) var favorited = false
-    private(set) var status: BridgeStatus = .ok
+    private(set) var status: BridgeStatus = .loading
 
     private(set) var artwork: NSImage?
     private(set) var meshColors: [Color] = Palette.fallback
@@ -22,10 +22,11 @@ final class PlayerStore {
     private(set) var syncMessage: String?
 
     private(set) var playlists: [Playlist] = []
+    private(set) var libraryPlaylists: [MediaItem] = []
 
     var isPlaying: Bool { state == .playing }
 
-    let bridge = MusicBridge()
+    let bridge = AppleMusicEngine()
     let isDemo = CommandLine.arguments.contains { $0.hasPrefix("--demo") }
 
     private let lyricsClient = LyricsClient()
@@ -43,11 +44,10 @@ final class PlayerStore {
         if isDemo {
             loadDemo()
         } else {
-            DistributedNotificationCenter.default().addObserver(
-                forName: .init("com.apple.Music.playerInfo"), object: nil, queue: .main
-            ) { [weak self] _ in
+            bridge.onChange = { [weak self] in
                 Task { @MainActor in await self?.poll() }
             }
+            bridge.start()
             Task {
                 while true {
                     await poll()
@@ -245,12 +245,7 @@ final class PlayerStore {
         if !isDemo { bridge.setFavorited(favorited) }
     }
 
-    func openMusic() { bridge.openMusic() }
-
-    func openAutomationSettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
-        NSWorkspace.shared.open(url)
-    }
+    func signIn() { bridge.showSignIn() }
 
     // MARK: Library
 
@@ -259,6 +254,11 @@ final class PlayerStore {
         playlists = await withCheckedContinuation { continuation in
             bridge.fetchPlaylists { continuation.resume(returning: $0) }
         }
+    }
+
+    func refreshLibraryPlaylists() async {
+        guard !isDemo else { return }
+        libraryPlaylists = await catalog.libraryPlaylists()
     }
 
     func tracks(in playlist: Playlist) async -> [Track] {

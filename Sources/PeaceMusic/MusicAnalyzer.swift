@@ -443,7 +443,24 @@ final class MusicAnalyzer: @unchecked Sendable {
             var bundleSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
             guard AudioObjectGetPropertyData(process, &bundleProperty, 0, nil, &bundleSize, &bundle) == noErr,
                   let identifier = bundle?.takeRetainedValue() as String? else { return false }
-            return identifier == "com.apple.Music" || identifier.hasPrefix("com.apple.Music.")
+            // Peace's web player plays through WebKit helper processes, which are ours when
+            // macOS holds Peace responsible for them. Safari's helpers are left out.
+            guard identifier.hasPrefix("com.apple.WebKit") else { return false }
+            var pidProperty = address(kAudioProcessPropertyPID)
+            var pid: pid_t = 0
+            var pidSize = UInt32(MemoryLayout<pid_t>.size)
+            guard AudioObjectGetPropertyData(process, &pidProperty, 0, nil, &pidSize, &pid) == noErr else { return false }
+            return responsiblePID(for: pid) == getpid()
         }
+    }
+
+    private typealias ResponsibleFunction = @convention(c) (pid_t) -> pid_t
+    private static let responsibleFunction: ResponsibleFunction? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "responsibility_get_pid_responsible_for_pid") else { return nil }
+        return unsafeBitCast(symbol, to: ResponsibleFunction.self)
+    }()
+
+    private static func responsiblePID(for pid: pid_t) -> pid_t? {
+        responsibleFunction?(pid)
     }
 }

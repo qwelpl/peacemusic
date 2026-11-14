@@ -43,6 +43,6 @@ struct Playlist: Identifiable, Hashable {
 
 enum BridgeStatus: Equatable {
     case ok
-    case musicNotRunning
-    case notAuthorized
+    case loading
+    case signedOut
 }
