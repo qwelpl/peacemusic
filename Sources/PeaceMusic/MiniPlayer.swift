@@ -322,10 +322,6 @@ private struct MiniPlayerView: View {
 
     private var theme: UITheme { UITheme(rawValue: themeRaw) ?? .glass }
     private var style: MiniStyle { MiniStyle(rawValue: styleRaw) ?? .disc }
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: theme.cornerRadius(style.cornerRadius(expanded: miniPlayer.isExpanded)), style: .continuous)
-    }
-
     var body: some View {
         Group {
             if miniPlayer.isOpen {
@@ -340,6 +336,30 @@ private struct MiniPlayerView: View {
     }
 
     private var content: some View {
+        MiniPlayerCard(expanded: miniPlayer.isExpanded)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: miniPlayer.corner.alignment)
+            .padding(MiniPlayerController.margin)
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var miniExpanded = false
+}
+
+// The mini player itself, also drawn by Settings to preview each style.
+struct MiniPlayerCard: View {
+    let expanded: Bool
+
+    @AppStorage("uiTheme") private var themeRaw = UITheme.glass.rawValue
+    @AppStorage(MiniStyle.key) private var styleRaw = MiniStyle.disc.rawValue
+
+    private var theme: UITheme { UITheme(rawValue: themeRaw) ?? .glass }
+    private var style: MiniStyle { MiniStyle(rawValue: styleRaw) ?? .disc }
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: theme.cornerRadius(style.cornerRadius(expanded: expanded)), style: .continuous)
+    }
+
+    var body: some View {
         ZStack {
             switch style {
             case .disc:
@@ -350,14 +370,14 @@ private struct MiniPlayerView: View {
                     colors: [.black.opacity(0.62), .black.opacity(0.12)],
                     startPoint: .leading, endPoint: .trailing
                 )
-                if miniPlayer.isExpanded {
+                if expanded {
                     ExpandedMini().transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
                     CompactMini().transition(.opacity)
                 }
             case .sleeve:
                 SleeveBackdrop()
-                if miniPlayer.isExpanded {
+                if expanded {
                     SleeveExpanded().transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
                     SleeveCompact().transition(.opacity)
@@ -366,16 +386,11 @@ private struct MiniPlayerView: View {
                 SquareMini()
             }
         }
-        .frame(width: pillSize.width, height: pillSize.height)
+        .environment(\.miniExpanded, expanded)
+        .frame(width: style.size(expanded: expanded).width, height: style.size(expanded: expanded).height)
         .clipShape(shape)
         .overlay(shape.strokeBorder(.white.opacity(theme == .glass ? 0.18 : 0.75), lineWidth: 1))
         .shadow(color: .black.opacity(0.4), radius: 12, y: 5)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: miniPlayer.corner.alignment)
-        .padding(MiniPlayerController.margin)
-    }
-
-    private var pillSize: NSSize {
-        style.size(expanded: miniPlayer.isExpanded)
     }
 }
 
@@ -810,6 +825,7 @@ private struct SquareMini: View {
     @Environment(\.uiTheme) private var theme
     @Environment(\.lyricFont) private var lyricFont
     @AppStorage("miniShowsLyrics") private var showsLyrics = true
+    @Environment(\.miniExpanded) private var expanded
 
     var body: some View {
         ZStack {
@@ -817,7 +833,7 @@ private struct SquareMini: View {
             // Overlay keeps the filled cover from widening the layout.
             Color.clear.overlay { ArtworkImage(image: store.artwork) }
                 .clipped()
-            if miniPlayer.isExpanded {
+            if expanded {
                 details.transition(.opacity)
             } else {
                 VStack {

@@ -13,6 +13,8 @@ enum PlayerMode: String, CaseIterable {
 struct NowPlayingView: View {
     // Set when Now Playing opens over the browser, which it can then go back to.
     var onClose: (() -> Void)? = nil
+    // Drawn small in Settings: no keyboard focus.
+    var isPreview = false
 
     @Environment(PlayerStore.self) private var store
     @Environment(MiniPlayerController.self) private var miniPlayer
@@ -34,7 +36,7 @@ struct NowPlayingView: View {
     private var chromeVisible: Bool { !isIdle || !store.isPlaying || showsLibrary }
 
     var body: some View {
-        if miniPlayer.isOpen, onClose == nil {
+        if miniPlayer.isOpen, onClose == nil, !isPreview {
             Color.black
         } else {
             fullPlayer
@@ -81,7 +83,7 @@ struct NowPlayingView: View {
         .focused($isFocused)
         .onAppear {
             store.start()
-            isFocused = true
+            isFocused = !isPreview
         }
         .onKeyPress(.space) { store.togglePlayPause(); return .handled }
         .onKeyPress(.escape) {
