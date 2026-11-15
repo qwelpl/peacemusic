@@ -38,11 +38,11 @@ struct SettingsPage: View {
                     VStack(alignment: .leading, spacing: 26) {
                         PageTitle(title: "Settings", subtitle: "Peace")
                         VStack(alignment: .leading, spacing: 22) {
-                            nowPlaying.previewing(.nowPlaying, $topic)
-                            lyrics.previewing(.lyrics, $topic)
-                            window.previewing(.window, $topic)
-                            miniPlayerSection.previewing(.miniPlayer, $topic)
-                            performance.previewing(.performance, $topic)
+                            nowPlaying
+                            lyrics
+                            window
+                            miniPlayerSection
+                            performance
                             account
                         }
                         .padding(.horizontal, Layout.gutter)
@@ -63,21 +63,6 @@ struct SettingsPage: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // Changing a setting shows what it changed.
-        .onChange(of: modeRaw) { topic = .nowPlaying }
-        .onChange(of: themeRaw) { topic = .nowPlaying }
-        .onChange(of: heroRaw) { topic = .nowPlaying }
-        .onChange(of: showsNowPlayingLyrics) { topic = .nowPlaying }
-        .onChange(of: lyricStyleRaw) { topic = .lyrics }
-        .onChange(of: lyricFontRaw) { topic = .lyrics }
-        .onChange(of: lyricScale) { topic = .lyrics }
-        .onChange(of: colorsMatchSong) { topic = .lyrics }
-        .onChange(of: showsSongPanel) { topic = .window }
-        .onChange(of: showsLyricsCard) { topic = .window }
-        .onChange(of: miniStyleRaw) { topic = .miniPlayer }
-        .onChange(of: miniShowsLyrics) { topic = .miniPlayer }
-        .onChange(of: frameRate) { topic = .performance }
-        .onChange(of: savesBattery) { topic = .performance }
     }
 
     // MARK: Sections
@@ -204,13 +189,6 @@ struct SettingsPage: View {
 }
 
 // MARK: Building blocks
-
-private extension View {
-    // Pointing at a card turns the preview to what it changes.
-    func previewing(_ topic: PreviewTopic, _ selection: Binding<PreviewTopic>) -> some View {
-        onHover { if $0, selection.wrappedValue != topic { selection.wrappedValue = topic } }
-    }
-}
 
 private struct SettingsCard<Content: View>: View {
     let title: String

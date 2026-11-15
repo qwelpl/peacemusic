@@ -1,6 +1,6 @@
 import SwiftUI
 
-// What the Settings preview shows: the part of Peace the setting you're on changes.
+// The parts of Peace the Settings preview can show, picked with its tabs.
 enum PreviewTopic: String, CaseIterable {
     case nowPlaying, lyrics, window, miniPlayer, performance
 
@@ -69,15 +69,16 @@ struct SettingsPreview: View {
         HStack(spacing: 4) {
             ForEach(PreviewTopic.allCases, id: \.self) { item in
                 Button { topic = item } label: {
-                    Image(systemName: item.symbol)
-                        .font(.system(size: 12, weight: .semibold))
+                    VStack(spacing: 3) {
+                        Image(systemName: item.symbol).font(.system(size: 12, weight: .semibold))
+                        Text(item.title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                    }
                         .foregroundStyle(topic == item ? theme.onAccent : .white.opacity(0.7))
-                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .background(topic == item ? theme.accent : .white.opacity(0.06), in: .rect(cornerRadius: 9, style: .continuous))
                         .contentShape(.rect)
                 }
                 .buttonStyle(.pointer)
-                .help(item.title)
             }
         }
     }
