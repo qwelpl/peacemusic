@@ -207,7 +207,7 @@ private struct WindowPreview: View {
                 }
             }
             .padding(6)
-            .frame(height: 210)
+            .aspectRatio(16 / 10, contentMode: .fit)
             .background(.black.opacity(0.35), in: .rect(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.12)))
             .clipShape(.rect(cornerRadius: 14, style: .continuous))
@@ -239,6 +239,7 @@ private struct MiniPlayerPreview: View {
                 }
                 .scaleEffect(0.82)
             }
+            .frame(maxWidth: .infinity)
             .frame(height: 360)
             .clipShape(.rect(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.12)))
@@ -269,7 +270,7 @@ private struct MotionPreview: View {
                     }
                 }
             }
-            .frame(height: 200)
+            .aspectRatio(16 / 9, contentMode: .fit)
             .background(.black.opacity(0.35), in: .rect(cornerRadius: 14, style: .continuous))
             Caption(text: "Moving at \(Int((1 / interval).rounded())) frames a second\(PowerState.shared.isSaving && savesBattery ? ", halved to save battery" : "").")
         }

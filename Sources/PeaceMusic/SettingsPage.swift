@@ -32,7 +32,10 @@ struct SettingsPage: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let showsPreview = proxy.size.width >= 1000
+            // Settings keep their width; the preview takes all the rest.
+            let settingsWidth = min(900 + Layout.gutter * 2, max(proxy.size.width - 400, 640))
+            let previewWidth = proxy.size.width - settingsWidth - 24
+            let showsPreview = previewWidth >= 340
             HStack(alignment: .top, spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 26) {
@@ -52,10 +55,10 @@ struct SettingsPage: View {
                     .padding(.bottom, Layout.bottomInset)
                 }
                 .scrollIndicators(.never)
-                .frame(maxWidth: 900 + Layout.gutter * 2, alignment: .leading)
+                .frame(width: showsPreview ? settingsWidth : proxy.size.width, alignment: .leading)
                 if showsPreview {
                     SettingsPreview(topic: $topic)
-                        .frame(width: min(480, proxy.size.width * 0.38))
+                        .frame(width: previewWidth)
                         .padding(.top, Layout.topInset)
                         .padding(.trailing, 24)
                         .padding(.bottom, Layout.bottomInset - 20)
