@@ -121,7 +121,13 @@ final class AppleMusicEngine: NSObject {
     }
 
     private func send(_ body: String, _ arguments: [String: Any] = [:]) {
-        Task { try? await call(body, arguments) }
+        Task {
+            do {
+                _ = try await call(body, arguments)
+            } catch {
+                Self.logger.error("command failed: \(error) in \(body.prefix(120))")
+            }
+        }
     }
 
     // Calls the Apple Music API through the page's MusicKit, which carries its own token.
@@ -155,14 +161,21 @@ final class AppleMusicEngine: NSObject {
     // MARK: Queue
 
     /// Starts playing a song, album, playlist or station. Library IDs work too.
-    func play(kind: String, id: String, startWith index: Int? = nil, shuffle: Bool = false) {
+    /// `song` is played on its own if the album or playlist won't start at it.
+    func play(kind: String, id: String, startWith index: Int? = nil, song: String? = nil, shuffle: Bool = false) {
         send("""
         music.shuffleMode = shuffle ? 1 : 0;
         const options = { startPlaying: true };
         options[kind] = id;
         if (index !== null) options.startWith = index;
-        await music.setQueue(options);
-        """, ["kind": kind, "id": id, "index": index as Any? ?? NSNull(), "shuffle": shuffle])
+        try {
+            await music.setQueue(options);
+        } catch (error) {
+            if (!song) throw error;
+            console.warn('peace play fallback: ' + error);
+            await music.setQueue({ song, startPlaying: true });
+        }
+        """, ["kind": kind, "id": id, "index": index as Any? ?? NSNull(), "song": song as Any? ?? NSNull(), "shuffle": shuffle])
     }
 
     func play(songs ids: [String], startWith index: Int) {

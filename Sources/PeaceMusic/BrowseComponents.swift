@@ -192,7 +192,7 @@ extension PlayerStore {
     /// Plays a track inside the album or playlist it was picked from, so the rest follows.
     func play(_ tracks: [MediaItem], at index: Int, in collection: MediaItem?) {
         if let collection, let key = collection.kind.queueKey, collection.kind != .station {
-            bridge.play(kind: key, id: collection.queueID, startWith: index)
+            bridge.play(kind: key, id: collection.queueID, startWith: index, song: tracks.indices.contains(index) ? tracks[index].queueID : nil)
         } else {
             bridge.play(songs: tracks.map(\.queueID), startWith: index)
         }
