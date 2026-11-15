@@ -29,6 +29,7 @@ struct SettingsPage: View {
     @AppStorage("showsLyricsCard") private var showsLyricsCard = true
 
     @State private var topic = PreviewTopic.nowPlaying
+    @State private var titleHeight: CGFloat = 0
 
     var body: some View {
         GeometryReader { proxy in
@@ -40,6 +41,7 @@ struct SettingsPage: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 26) {
                         PageTitle(title: "Settings", subtitle: "Peace")
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { titleHeight = $0 }
                         VStack(alignment: .leading, spacing: 22) {
                             nowPlaying
                             lyrics
@@ -59,7 +61,8 @@ struct SettingsPage: View {
                 if showsPreview {
                     SettingsPreview(topic: $topic)
                         .frame(width: previewWidth)
-                        .padding(.top, Layout.topInset)
+                        // Lines up with the first card, below the title.
+                        .padding(.top, Layout.topInset + titleHeight + 26)
                         .padding(.trailing, 24)
                         .padding(.bottom, Layout.bottomInset - 20)
                 }
