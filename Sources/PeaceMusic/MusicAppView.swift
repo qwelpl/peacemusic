@@ -1,4 +1,3 @@
-import AVKit
 import SwiftUI
 
 enum LibrarySection: String, CaseIterable, Identifiable {
@@ -723,7 +722,7 @@ private struct PlayerDock: View {
                 .controlSize(.small)
                 .tint(.white)
                 .frame(width: 80)
-            RoutePicker().frame(width: 34, height: 34).help("AirPlay")
+            OutputPicker()
         }
     }
 
@@ -759,15 +758,4 @@ private struct PlayerDock: View {
         }
         .buttonStyle(.pointer)
     }
-}
-
-private struct RoutePicker: NSViewRepresentable {
-    func makeNSView(context: Context) -> AVRoutePickerView {
-        let picker = AVRoutePickerView()
-        picker.isRoutePickerButtonBordered = false
-        picker.setRoutePickerButtonColor(.white, for: .normal)
-        return picker
-    }
-
-    func updateNSView(_ view: AVRoutePickerView, context: Context) {}
 }
