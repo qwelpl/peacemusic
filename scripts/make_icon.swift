@@ -11,32 +11,31 @@ func render(_ pixels: Int) -> Data {
     let inset = size * 0.1
     let tile = NSRect(x: inset, y: inset, width: size - inset * 2, height: size - inset * 2)
 
+    // A dark tile, one thin ring and a warm dot: a record, pared down.
     let tilePath = NSBezierPath(roundedRect: tile, xRadius: size * 0.18, yRadius: size * 0.18)
     NSGraphicsContext.saveGraphicsState()
     tilePath.addClip()
     NSGradient(colors: [
-        NSColor(srgbRed: 0.96, green: 0.3, blue: 0.42, alpha: 1),
-        NSColor(srgbRed: 0.42, green: 0.15, blue: 0.75, alpha: 1),
-        NSColor(srgbRed: 0.04, green: 0.3, blue: 0.68, alpha: 1),
-    ])!.draw(in: tile, angle: -60)
+        NSColor(white: 0.16, alpha: 1),
+        NSColor(white: 0.05, alpha: 1),
+    ])!.draw(in: tile, angle: -90)
 
     let center = NSPoint(x: size / 2, y: size / 2)
     func circle(_ radius: CGFloat) -> NSBezierPath {
         NSBezierPath(ovalIn: NSRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
     }
-    NSColor(white: 0.05, alpha: 1).setFill()
-    circle(size * 0.3).fill()
-    NSColor(white: 1, alpha: 0.09).setStroke()
-    for ring in stride(from: size * 0.15, to: size * 0.29, by: size * 0.022) {
-        let path = circle(ring)
-        path.lineWidth = max(size * 0.002, 0.5)
-        path.stroke()
-    }
-    NSColor(srgbRed: 1, green: 0.78, blue: 0.45, alpha: 1).setFill()
-    circle(size * 0.115).fill()
-    NSColor(white: 0.05, alpha: 1).setFill()
-    circle(size * 0.018).fill()
+    let ring = circle(size * 0.215)
+    ring.lineWidth = max(size * 0.03, 1)
+    NSColor(white: 1, alpha: 0.95).setStroke()
+    ring.stroke()
+    NSColor(srgbRed: 1, green: 0.74, blue: 0.25, alpha: 1).setFill()
+    circle(size * 0.055).fill()
     NSGraphicsContext.restoreGraphicsState()
+
+    // A hairline edge so the tile holds its shape on dark backgrounds.
+    tilePath.lineWidth = max(size * 0.004, 0.5)
+    NSColor(white: 1, alpha: 0.1).setStroke()
+    tilePath.stroke()
 
     NSGraphicsContext.current = nil
     return rep.representation(using: .png, properties: [:])!
