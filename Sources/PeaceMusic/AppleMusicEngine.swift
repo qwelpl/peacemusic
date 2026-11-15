@@ -41,6 +41,7 @@ final class AppleMusicEngine: NSObject {
         webView.uiDelegate = self
         webView.isInspectable = true
         webView.navigationDelegate = self
+        keepPageAwake()
         hide()
         webView.load(URLRequest(url: Self.home))
     }
@@ -61,6 +62,18 @@ final class AppleMusicEngine: NSObject {
         window.contentView = webView
         window.orderBack(nil)
         setPageHidden(true)
+    }
+
+    // A full-screen visualizer covers the invisible window. WebKit would then treat the page
+    // as hidden and throttle its timers, and MusicKit stops moving on to the next song.
+    private func keepPageAwake() {
+        let selector = NSSelectorFromString("_setWindowOcclusionDetectionEnabled:")
+        guard let method = class_getInstanceMethod(WKWebView.self, selector) else {
+            Self.logger.notice("occlusion detection can't be turned off")
+            return
+        }
+        typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
+        unsafeBitCast(method_getImplementation(method), to: Setter.self)(webView, selector, false)
     }
 
     // Apple's page keeps animating while it's hidden. Hiding its content stops the drawing
@@ -449,6 +462,7 @@ final class AppleMusicEngine: NSObject {
                 music.addEventListener(name, post);
             }
             setInterval(post, 1000);
+            document.addEventListener('visibilitychange', () => console.warn('peace visibility: ' + document.visibilityState));
             post();
         };
         attach();
