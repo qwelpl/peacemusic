@@ -80,18 +80,17 @@ private struct RightClickCatcher: NSViewRepresentable {
     }
 }
 
-// A "…" button that opens the menu just below itself.
+// A "…" button that opens the menu just below the pointer.
 struct MoreButton: View {
     let item: MediaItem
     var size: CGFloat = 34
     var glass = false
 
     @Environment(\.menuPresenter) private var presenter
-    @State private var frame: CGRect = .zero
 
     var body: some View {
         Button {
-            presenter?.show(item, at: CGPoint(x: frame.minX, y: frame.maxY + 6))
+            presenter?.show(item, at: Self.pointer())
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: glass ? 14 : 13, weight: .bold))
@@ -103,7 +102,14 @@ struct MoreButton: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.pointer)
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+    }
+
+    // Opens at the pointer. Tracking every button's frame instead made each resize and
+    // scroll update every row.
+    private static func pointer() -> CGPoint {
+        guard let window = NSApp.keyWindow, let content = window.contentView else { return .zero }
+        let point = content.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        return CGPoint(x: point.x - 12, y: (content.isFlipped ? point.y : content.bounds.height - point.y) + 14)
     }
 }
 

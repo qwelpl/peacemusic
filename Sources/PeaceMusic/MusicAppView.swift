@@ -642,7 +642,6 @@ private struct PlayerDock: View {
             HStack(spacing: 18) {
                 nowPlaying
                     .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
                 transport
                 trailing.frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -650,7 +649,8 @@ private struct PlayerDock: View {
             .frame(height: 70)
             progress
         }
-        .frame(maxWidth: 980)
+        // Wide enough that the full set of buttons fits beside the song once there's room.
+        .frame(maxWidth: 1220)
         .songGlass(in: .rect(cornerRadius: 26, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
         .padding(.horizontal, 24)

@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
         screenAwake.start()
+        _ = LiveResize.shared
         if ResizeBench.isRequested {
             Task {
                 try? await Task.sleep(for: .seconds(3))

@@ -127,10 +127,11 @@ struct Artwork: View {
         .frame(width: size, height: size)
         .clipShape(shape)
         .overlay(shape.stroke(.white.opacity(0.1), lineWidth: 0.5))
+        // Shadow only on hover: dozens of resting shadows slowed every resize and scroll.
         .shadow(
-            color: glow > 0 ? (color ?? .black).opacity(glow * 0.55) : .black.opacity(0.3),
-            radius: glow > 0 ? 10 + glow * 22 : 5,
-            y: glow > 0 ? 6 + glow * 8 : 3
+            color: glow > 0 ? (color ?? .black).opacity(glow * 0.55) : .clear,
+            radius: glow > 0 ? 10 + glow * 22 : 0,
+            y: glow > 0 ? 6 + glow * 8 : 0
         )
         .task(id: url) {
             guard let url else { image = nil; return }

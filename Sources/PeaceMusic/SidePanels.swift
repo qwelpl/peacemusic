@@ -504,7 +504,7 @@ private struct PanelVisualizer: View {
 
     var body: some View {
         // Never faster than 30 fps: it sits inside a glass panel that redraws with it.
-        TimelineView(.animation(minimumInterval: max(FrameRate.interval(frameRate, savesBattery: savesBattery), 1.0 / 30), paused: !store.isPlaying)) { _ in
+        TimelineView(.animation(minimumInterval: max(FrameRate.interval(frameRate, savesBattery: savesBattery), 1.0 / 30), paused: !store.isPlaying || LiveResize.shared.isActive)) { _ in
             let spectrum = analyzer.reading.spectrum
             let colors = store.accentColors
             Canvas { context, size in
