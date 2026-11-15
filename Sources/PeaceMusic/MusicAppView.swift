@@ -57,6 +57,12 @@ struct MusicAppView: View {
         .onAppear {
             store.start()
             if CommandLine.arguments.contains("--settings") { destination = .settings }
+            switch ResizeBench.page {
+            case "albums": destination = .library(.albums)
+            case "songs": destination = .library(.songs)
+            case "settings": destination = .settings
+            default: break
+            }
         }
         .task(id: store.status) {
             if store.status == .ok { await store.refreshLibraryPlaylists() }
@@ -69,6 +75,8 @@ struct MusicAppView: View {
             HStack(spacing: 12) {
                 LeftSidebar(destination: $destination, query: $query, select: select)
                     .frame(width: 236)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(2)
                 main
                 if showsSongPanel, store.track != nil {
                     NowPlayingPanel(openNowPlaying: openNowPlaying)
@@ -632,7 +640,9 @@ private struct PlayerDock: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 18) {
-                nowPlaying.frame(maxWidth: .infinity, alignment: .leading)
+                nowPlaying
+                    .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
                 transport
                 trailing.frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -697,7 +707,22 @@ private struct PlayerDock: View {
         }
     }
 
+    // Drops the less used buttons when the dock gets narrow, so the song name keeps its room.
     private var trailing: some View {
+        ViewThatFits(in: .horizontal) {
+            fullTrailing
+            HStack(spacing: 6) {
+                dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
+                    .help("Love")
+                dockButton("sidebar.right", size: 14, dimmed: !showsSongPanel) { showsSongPanel.toggle() }
+                    .help("Song details, lyrics and Up Next")
+                OutputPicker()
+            }
+            OutputPicker()
+        }
+    }
+
+    private var fullTrailing: some View {
         HStack(spacing: 6) {
             dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
                 .help("Love")

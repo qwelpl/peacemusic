@@ -20,6 +20,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
         screenAwake.start()
+        if ResizeBench.isRequested {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                if miniPlayer.isOpen { miniPlayer.close() } else { miniPlayer.showMainWindow() }
+                await ResizeBench.run(label: ResizeBench.page ?? "home")
+            }
+        }
         // Gives the main window time to appear before moving it.
         Task {
             try? await Task.sleep(for: .seconds(0.6))
@@ -67,7 +74,7 @@ struct PeaceApp: App {
                 .environment(delegate.displays)
                 .environment(delegate.miniPlayer)
                 .environment(\.musicAnalyzer, delegate.analyzer)
-                .frame(minWidth: 900, minHeight: 620)
+                .frame(minWidth: 1180, minHeight: 640)
                 .windowFullScreenBehavior(.enabled)
                 .connectMainWindow(to: delegate.miniPlayer)
         }
