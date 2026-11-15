@@ -204,6 +204,9 @@ struct NowPlayingPanel: View {
     @State private var upNext: [AppleMusicEngine.QueueEntry] = []
     // Plain state rather than a stored setting, so changing it animates.
     @State private var lyricsExpanded = false
+    @Environment(\.lyricFont) private var lyricFont
+    @Environment(\.lyricScale) private var lyricScale
+    @Environment(\.lyricColors) private var lyricColors
     @AppStorage("showsLyricsCard") private var showsLyricsCard = true
 
     var body: some View {
@@ -291,8 +294,8 @@ struct NowPlayingPanel: View {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(shown, id: \.element.id) { index, line in
                             Text(line.text)
-                                .font(.system(size: index == current ? 17 : 14, weight: index == current ? .heavy : .semibold))
-                                .foregroundStyle(.white.opacity(index == current ? 1 : index < current ? 0.3 : 0.5))
+                                .font(lyricFont.font((index == current ? 17 : 14) * lyricScale, index == current ? .heavy : .semibold, theme: .glass))
+                                .foregroundStyle(index == current ? lyricColors.highlight : lyricColors.secondary.opacity(index < current ? 0.4 : 0.65))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -327,8 +330,8 @@ struct NowPlayingPanel: View {
         } else if case .plain(let text) = store.lyrics {
             card("Lyrics", symbol: "quote.bubble") {
                 Text(text)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .font(lyricFont.font(13 * lyricScale, .medium, theme: .glass))
+                    .foregroundStyle(lyricColors.text.opacity(0.8))
                     .lineLimit(lyricsExpanded ? nil : 8)
             } accessory: {
                 Image(systemName: lyricsExpanded ? "chevron.up" : "chevron.down")
@@ -532,6 +535,9 @@ private struct ExpandedLyrics: View {
     let current: Int
 
     @Environment(PlayerStore.self) private var store
+    @Environment(\.lyricFont) private var lyricFont
+    @Environment(\.lyricScale) private var lyricScale
+    @Environment(\.lyricColors) private var lyricColors
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -545,8 +551,8 @@ private struct ExpandedLyrics: View {
                                 .id(line.id)
                         } else {
                             Text(line.text)
-                                .font(.system(size: 17, weight: .heavy))
-                                .foregroundStyle(.white.opacity(index == current ? 1 : index < current ? 0.3 : 0.5))
+                                .font(lyricFont.font(17 * lyricScale, .heavy, theme: .glass))
+                                .foregroundStyle(index == current ? lyricColors.highlight : lyricColors.secondary.opacity(index < current ? 0.4 : 0.65))
                                 .scaleEffect(index == current ? 1.03 : 1, anchor: .leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true)

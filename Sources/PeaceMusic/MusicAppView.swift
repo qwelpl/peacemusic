@@ -43,6 +43,7 @@ struct MusicAppView: View {
             }
         }
         .environment(\.songTheme, songTheme)
+        .lyricLook()
         .tint(songTheme.accent)
         // Only the colors fade. Animating the whole window on a song change dragged every
         // other change made at the same moment (play button, titles) through the fade too.

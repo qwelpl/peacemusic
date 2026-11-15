@@ -197,6 +197,7 @@ private struct OrbitLyric: View {
     @Environment(\.uiTheme) private var theme
     @Environment(\.lyricFont) private var lyricFont
     @Environment(\.lyricScale) private var scale
+    @Environment(\.lyricColors) private var colors
 
     var body: some View {
         Group {
@@ -205,7 +206,7 @@ private struct OrbitLyric: View {
                     litText(words, position: store.lyricPosition(at: context.date))
                 }
             } else if let line = currentLine, !line.isInterlude {
-                Text(line.text).foregroundStyle(.white)
+                Text(line.text).foregroundStyle(colors.text)
             } else {
                 Text(" ")
             }
@@ -228,7 +229,7 @@ private struct OrbitLyric: View {
         var string = AttributedString()
         for (index, word) in words.enumerated() {
             var piece = AttributedString(index == 0 ? word.text : " " + word.text)
-            piece.foregroundColor = .white.opacity(position >= word.time ? 1 : 0.32)
+            piece.foregroundColor = position >= word.time ? colors.highlight : colors.text.opacity(0.32)
             string += piece
         }
         return Text(string)

@@ -331,7 +331,7 @@ private struct MiniPlayerView: View {
             }
         }
         .environment(\.uiTheme, theme)
-        .environment(\.lyricFont, LyricFont(rawValue: lyricFontRaw) ?? .theme)
+        .lyricLook()
         .preferredColorScheme(.dark)
     }
 

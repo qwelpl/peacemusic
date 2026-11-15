@@ -212,3 +212,27 @@ extension Color {
         self.init(nsColor: color)
     }
 }
+
+// Puts the chosen lyric font, size and colors into the environment, so every place that
+// shows lyrics (Now Playing, the side panel, the mini player) follows Settings.
+struct LyricLook: ViewModifier {
+    @Environment(PlayerStore.self) private var store
+    @AppStorage(LyricSettings.fontKey) private var fontRaw = LyricFont.theme.rawValue
+    @AppStorage(LyricSettings.scaleKey) private var scale = 1.0
+    // Read so the view redraws when a color changes.
+    @AppStorage(LyricColorSlot.autoSyncKey) private var autoSync = false
+    @AppStorage(LyricColorSlot.text.key) private var textHex = ""
+    @AppStorage(LyricColorSlot.highlight.key) private var highlightHex = ""
+    @AppStorage(LyricColorSlot.secondary.key) private var secondaryHex = ""
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.lyricFont, LyricFont(rawValue: fontRaw) ?? .theme)
+            .environment(\.lyricScale, scale)
+            .environment(\.lyricColors, LyricColorSlot.resolved(mesh: store.meshColors))
+    }
+}
+
+extension View {
+    func lyricLook() -> some View { modifier(LyricLook()) }
+}

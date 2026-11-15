@@ -75,8 +75,7 @@ struct NowPlayingView: View {
         .overlay(alignment: .topTrailing) { topBar }
         .overlay(alignment: .top) { syncToast }
         .environment(\.uiTheme, theme)
-        .environment(\.lyricFont, LyricFont(rawValue: lyricFontRaw) ?? .theme)
-        .environment(\.lyricScale, lyricScale)
+        .lyricLook()
         .preferredColorScheme(.dark)
         .focusable()
         .focusEffectDisabled()
