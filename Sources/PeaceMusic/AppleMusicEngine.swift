@@ -17,6 +17,8 @@ final class AppleMusicEngine: NSObject {
     private var artworkURL: URL?
     private var playlistTracks: [String: [Track]] = [:]
     private var started = false
+    // One restore per page load, so a token Apple has revoked can't bounce forever.
+    private var restoredThisLoad = false
 
     private static let logger = WebLog()
     private static let home = URL(string: "https://music.apple.com/us/browse")!
@@ -113,6 +115,7 @@ final class AppleMusicEngine: NSObject {
     }
 
     func signOut() {
+        SavedMusicToken.clear()
         send("await music.unauthorize()")
         status = .signedOut
         onChange()
@@ -265,6 +268,13 @@ final class AppleMusicEngine: NSObject {
 
     fileprivate func receive(_ body: Any) {
         guard let message = body as? [String: Any] else { return }
+        if let token = message["token"] as? String, !token.isEmpty, token != SavedMusicToken.load() {
+            SavedMusicToken.save(token)
+        }
+        if message["authorized"] as? Bool == false, !restoredThisLoad, let token = SavedMusicToken.load() {
+            restoreSignIn(token)
+            return
+        }
         if let authorized = message["authorized"] as? Bool {
             if (authorized ? BridgeStatus.ok : .signedOut) != status {
                 Self.logger.notice("authorized: \(authorized)")
@@ -304,6 +314,20 @@ final class AppleMusicEngine: NSObject {
         next.capturedAt = Date()
         snapshot = next
         onChange()
+    }
+
+    // After sign-in the web player asks Apple's servers to set the media-user-token cookie,
+    // then reloads the token from that cookie. Inside Peace the cookie never arrives, so the
+    // reload wipes the token and MusicKit signs out the moment sign-in finishes. Writing the
+    // cookie first gives the reload the same token back.
+    private func restoreSignIn(_ token: String) {
+        restoredThisLoad = true
+        Self.logger.notice("restoring saved sign-in")
+        send("""
+        const expires = new Date(Date.now() + 180 * 864e5).toUTCString();
+        document.cookie = `media-user-token=${token}; expires=${expires}; domain=music.apple.com; path=/; secure`;
+        music.musicUserToken = token;
+        """, ["token": token])
     }
 
     private func loadRating(_ id: String) {
@@ -451,6 +475,16 @@ final class AppleMusicEngine: NSObject {
         console.error = function () { send('error', arguments); error.apply(console, arguments); };
         console.warn = function () { send('warn', arguments); warn.apply(console, arguments); };
         window.addEventListener('error', e => send('uncaught', [e.message]));
+        // Apple's servers set the sign-in cookie in reply to these; log how they answer.
+        const fetch = window.fetch;
+        window.fetch = function (input) {
+            const url = String((input && input.url) || input);
+            const result = fetch.apply(this, arguments);
+            if (url.startsWith('https://auth.') && url.includes('.apple.com/auth/')) {
+                result.then(r => send('auth', [url.split('?')[0] + ' ' + r.status]), e => send('auth', [url.split('?')[0] + ' ' + e]));
+            }
+            return result;
+        };
         window.addEventListener('message', e => send('message from ' + e.origin, [typeof e.data === 'string' ? e.data.slice(0, 200) : JSON.stringify(e.data).slice(0, 200)]));
     })();
     """
@@ -475,6 +509,7 @@ final class AppleMusicEngine: NSObject {
             const item = music.nowPlayingItem;
             window.webkit.messageHandlers.peace.postMessage({
                 authorized: music.isAuthorized,
+                token: music.isAuthorized ? music.musicUserToken : null,
                 state: music.playbackState,
                 time: preciseTime(music),
                 volume: music.volume,
@@ -530,6 +565,7 @@ extension AppleMusicEngine: WKUIDelegate, WKNavigationDelegate, NSWindowDelegate
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView == self.webView { restoredThisLoad = false }
         if webView == self.webView, signInWindow?.isVisible != true { setPageHidden(true) }
         Self.logger.notice("loaded: \(webView.url?.absoluteString ?? "-") popup: \(webView != self.webView)")
     }
@@ -580,7 +616,11 @@ private struct WebLog {
     func notice(_ message: String) { write(message) }
     func error(_ message: String) { write("error: " + message) }
 
+    // Apple Music user tokens are credentials; keep them out of the log.
+    private static let token = #/0\.A[A-Za-z0-9+\/%=]{40,}/#
+
     private func write(_ message: String) {
+        let message = message.replacing(Self.token, with: "<token>")
         logger.notice("\(message)")
         let line = "\(Date().formatted(.iso8601)) \(message)\n"
         guard let data = line.data(using: .utf8) else { return }
@@ -591,5 +631,39 @@ private struct WebLog {
         } else {
             try? data.write(to: Self.file)
         }
+    }
+}
+
+// The Apple Music user token, kept in the Keychain so sign-in survives relaunches.
+private enum SavedMusicToken {
+    private static let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: "com.qwelpl.peacemusic",
+        kSecAttrAccount as String: "music-user-token",
+    ]
+
+    static func load() -> String? {
+        var query = query
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func save(_ token: String) {
+        let data = Data(token.utf8)
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var item = query
+            item[kSecValueData as String] = data
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            SecItemAdd(item as CFDictionary, nil)
+        }
+    }
+
+    static func clear() {
+        SecItemDelete(query as CFDictionary)
     }
 }
