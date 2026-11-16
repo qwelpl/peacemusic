@@ -73,7 +73,7 @@ struct MusicAppView: View {
     }
 
     // Padding, sidebar, gaps, panel, and the narrowest the page should get beside them.
-    private static let songPanelMinimumWidth: CGFloat = 12 + 236 + 12 + 320 + 12 + 12 + 700
+    private static let songPanelMinimumWidth: CGFloat = 12 + 236 + 12 + 320 + 12 + 12 + 520
 
     private var browser: some View {
         ZStack {

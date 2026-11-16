@@ -75,7 +75,7 @@ struct PeaceApp: App {
                 .environment(delegate.displays)
                 .environment(delegate.miniPlayer)
                 .environment(\.musicAnalyzer, delegate.analyzer)
-                .frame(minWidth: 1180, minHeight: 640)
+                .frame(minWidth: 800, minHeight: 560)
                 .windowFullScreenBehavior(.enabled)
                 .connectMainWindow(to: delegate.miniPlayer)
         }
