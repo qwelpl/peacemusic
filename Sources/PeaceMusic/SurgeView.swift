@@ -123,10 +123,10 @@ private final class SurgeMotion {
         quiet += (energy - quiet) * min(step * (energy < quiet ? 2 : 0.12), 1)
         loud += (energy - loud) * min(step * (energy > loud ? 2 : 0.1), 1)
         let level = min(max((energy - quiet) / max(loud - quiet, 0.08), 0), 1)
-        let target = 0.25 + pow(level, 1.8) * 5.5
+        let target = 0.25 + pow(level, 1.6) * 2.3
         // Surge forward quickly, ease off slowly.
         speed += (target - speed) * min(step * (target > speed ? 5 : 1.6), 1)
-        let rush = min(max((speed - 0.25) / 5.5, 0), 1)
+        let rush = min(max((speed - 0.25) / 2.3, 0), 1)
         spin += step * (0.08 + pulse.mid * 0.5)
 
         for index in rings.indices { rings[index].z -= step * speed }
