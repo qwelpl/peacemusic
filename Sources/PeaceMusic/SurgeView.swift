@@ -300,6 +300,8 @@ private final class SurgeMotion {
     private static func ringPath(center: CGPoint, radius: CGFloat, shape: [Float], twist: Double) -> Path {
         var path = Path()
         let count = shape.count
+        // About one point every 8 pixels round the ring: far rings are tiny and need few.
+        let ringPoints = min(max(Int(radius * 2 * .pi / 8), 36), Self.ringPoints)
         func band(_ index: Int) -> Double {
             let position = index % (count * 2)
             return Double(shape[position < count ? position : count * 2 - 1 - position])

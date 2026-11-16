@@ -430,9 +430,9 @@ struct SongRow: View {
                 }
                 .buttonStyle(.pointer)
             } else if isCurrent {
+                // Still: a looping symbol redraws the whole window every frame.
                 Image(systemName: store.isPlaying ? "waveform" : "speaker.fill")
                     .font(.system(size: 12, weight: .bold))
-                    .symbolEffect(.variableColor.iterative, isActive: store.isPlaying)
             } else if !showsArtwork {
                 Text("\(song.trackNumber ?? index + 1)")
                     .font(.system(size: 12, weight: .medium).monospacedDigit())

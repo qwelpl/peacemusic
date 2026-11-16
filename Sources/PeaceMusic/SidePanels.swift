@@ -151,9 +151,9 @@ struct LeftSidebar: View {
     private var listening: some View {
         if let track = store.track {
             HStack(spacing: 10) {
+                // Still: a looping symbol redraws the whole window every frame.
                 Image(systemName: store.isPlaying ? "waveform" : "pause.fill")
                     .font(.system(size: 12, weight: .bold))
-                    .symbolEffect(.variableColor.iterative, isActive: store.isPlaying)
                     .foregroundStyle(store.accentColors.first ?? .white)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(store.isPlaying ? "Listening" : "Paused")
