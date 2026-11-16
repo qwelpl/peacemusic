@@ -1,7 +1,7 @@
 import SwiftUI
 
 // Flying down a tunnel made of the music. Every ring is the spectrum at the moment it
-// formed, so the song's shape streams past. Speed follows the energy, and each bass hit
+// formed, so the song's shape streams past. Speed follows the song's hype, and each bass hit
 // punches the camera, splits the colors and fires a shockwave ring.
 struct SurgeView: View {
     let chromeVisible: Bool
@@ -28,6 +28,7 @@ struct SurgeView: View {
                             size: size,
                             pulse: pulse,
                             high: high,
+                            trackID: store.track?.id,
                             date: context.date,
                             colors: store.accentColors,
                             isMono: theme == .mono
@@ -79,16 +80,22 @@ private final class SurgeMotion {
     private var shake = CGSize.zero
     private var lastHitAge = Double.infinity
     private var speed = 0.6
-    // How loud the song is now, and the range it has moved in lately.
-    private var energy = 0.0
-    private var quiet = 0.2
-    private var loud = 0.6
+    // Hype: how loud and how dense with beats the music is, held over a second or so.
+    // Every reading this song is kept, so the moment can be ranked against the whole song.
+    private var hype = 0.0
+    private var hypeHistory: [Double] = []
+    private var sinceSample = 0.0
+    private var recentLevels: [Double] = []
+    private var drop = 0.0
+    private var sinceDrop = Double.infinity
+    private var track: String?
 
     func draw(
         in graphics: inout GraphicsContext,
         size: CGSize,
         pulse: OrbitPulse,
         high: Double,
+        trackID: String?,
         date: Date,
         colors: [Color],
         isMono: Bool
@@ -116,17 +123,30 @@ private final class SurgeMotion {
         lastHitAge = hitAge
         kick *= exp(-step / 0.16)
 
-        // Speed follows how loud this moment is next to the song's own recent quiet and loud,
-        // so a verse crawls and a drop rockets whatever the track's overall level.
-        let raw = pulse.bass * 0.45 + pulse.mid * 0.35 + high * 0.2
-        energy += (raw - energy) * min(step * 6, 1)
-        quiet += (energy - quiet) * min(step * (energy < quiet ? 2 : 0.12), 1)
-        loud += (energy - loud) * min(step * (energy > loud ? 2 : 0.1), 1)
-        let level = min(max((energy - quiet) / max(loud - quiet, 0.08), 0), 1)
-        let target = 0.25 + pow(level, 1.8) * 3.8
+        if trackID != track {
+            track = trackID
+            hypeHistory = []
+            recentLevels = []
+        }
+        let level = hypeLevel(pulse: pulse, high: high, step: step)
+
+        // A drop: from calm to the song's peak within a few seconds.
+        sinceDrop += step
+        if level > 0.85, (recentLevels.min() ?? 1) < 0.4, sinceDrop > 8 {
+            drop = 1
+            sinceDrop = 0
+            kick = 1
+            for _ in 0..<3 { spawn(shape: pulse.spectrum, strength: 1, palette: palette) }
+        }
+        drop *= exp(-step / 3)
+
+        // Verses cruise, choruses push, the song's biggest moments rush, and a drop
+        // throws everything forward on top of that.
+        let target = 0.25 + pow(level, 2.2) * 3.8 + drop * 1.6
         // Surge forward quickly, ease off slowly.
-        speed += (target - speed) * min(step * (target > speed ? 5 : 1.6), 1)
+        speed += (target - speed) * min(step * (target > speed ? 5 : 1.2), 1)
         let rush = min(max((speed - 0.25) / 3.8, 0), 1)
+        if drop > 0.05 { kick = max(kick, drop * 0.5) }
         spin += step * (0.08 + pulse.mid * 0.5)
 
         for index in rings.indices { rings[index].z -= step * speed }
@@ -211,6 +231,32 @@ private final class SurgeMotion {
             startRadius: min(size.width, size.height) * 0.3,
             endRadius: max(size.width, size.height) * 0.75
         ))
+    }
+
+    // Where this moment's hype ranks among everything heard so far in the song, from 0 to 1.
+    // Early on, before there's much to compare with, it leans on the hype itself.
+    private func hypeLevel(pulse: OrbitPulse, high: Double, step: Double) -> Double {
+        let loudness = pulse.bass * 0.45 + pulse.mid * 0.35 + high * 0.2
+        let beatsPerSecond = Double(pulse.hits.filter { $0 < 2 }.count) / 2
+        let raw = loudness * 0.65 + min(beatsPerSecond / 3, 1) * 0.35
+        hype += (raw - hype) * min(step / 1.2, 1)
+
+        sinceSample += step
+        if sinceSample >= 0.2 {
+            sinceSample = 0
+            hypeHistory.append(hype)
+            if hypeHistory.count > 3000 { hypeHistory.removeFirst() }
+        }
+        let rank = hypeHistory.isEmpty ? 0.5 : Double(hypeHistory.filter { $0 < hype }.count) / Double(hypeHistory.count)
+        let absolute = min(max((hype - 0.15) / 0.5, 0), 1)
+        let trust = min(Double(hypeHistory.count) / 150, 1)
+        let level = absolute + (rank - absolute) * trust
+
+        if sinceSample == 0 {
+            recentLevels.append(level)
+            if recentLevels.count > 20 { recentLevels.removeFirst() }
+        }
+        return level
     }
 
     private func spawn(shape: [Float], strength: Double, palette: [Color]) {
