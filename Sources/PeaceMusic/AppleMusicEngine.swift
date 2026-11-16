@@ -334,6 +334,19 @@ final class AppleMusicEngine: NSObject {
         """, ["id": id, "on": on])
     }
 
+    // Apple's own lyrics, timed syllable by syllable, as TTML. Nil when the song has none.
+    func syllableLyrics(for id: String) async -> String? {
+        var catalogID = id
+        if !id.allSatisfy(\.isNumber) {
+            let response = await api("/v1/me/library/songs/\(id)/catalog")
+            guard let found = (response?["data"] as? [[String: Any]])?.first?["id"] as? String else { return nil }
+            catalogID = found
+        }
+        let response = await api("/v1/catalog/{storefront}/songs/\(catalogID)/syllable-lyrics")
+        let attributes = (response?["data"] as? [[String: Any]])?.first?["attributes"] as? [String: Any]
+        return attributes?["ttml"] as? String
+    }
+
     func fetchPlaylists(completion: @escaping ([Playlist]) -> Void) {
         Task {
             let response = await api("/v1/me/library/playlists", ["limit": 100])

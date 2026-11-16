@@ -4,6 +4,8 @@ struct LyricWord: Equatable {
     let text: String
     let time: Double
     let duration: Double
+    // The word's timed pieces, when the source times inside words: a syllable, or a kana or kanji.
+    var parts: [LyricWord] = []
 }
 
 struct LyricLine: Identifiable, Equatable {
@@ -24,6 +26,7 @@ enum Lyrics: Equatable {
 }
 
 enum LyricsSource: String, Codable {
+    case appleSyllables = "Apple Music syllable timing"
     case netEaseWords = "NetEase word timing"
     case netEaseLines = "NetEase line timing"
     case kugouWords = "Kugou word timing"
@@ -96,10 +99,12 @@ enum YRCParser {
                 let wordDuration = Double(part.2)! / 1000
                 if !cleaned.isEmpty {
                     if continuesWord, let last = words.last {
+                        let piece = LyricWord(text: cleaned, time: time, duration: wordDuration)
                         words[words.count - 1] = LyricWord(
                             text: last.text + cleaned,
                             time: last.time,
-                            duration: time + wordDuration - last.time
+                            duration: time + wordDuration - last.time,
+                            parts: (last.parts.isEmpty ? [last] : last.parts) + [piece]
                         )
                     } else {
                         words.append(LyricWord(text: cleaned, time: time, duration: wordDuration))
@@ -117,6 +122,128 @@ enum YRCParser {
             previousEnd = end
         }
         return lines
+    }
+}
+
+// Apple Music's lyrics: a <p> per line holding a timed <span> per syllable. Spans that
+// touch belong to one word; whitespace between them starts a new one. Background vocals
+// are left out.
+enum TTMLParser {
+    static func parse(_ ttml: String) -> [LyricLine] {
+        let reader = TTMLReader()
+        // Apple writes some kanji as their look-alike radical characters (⼈ for 人).
+        let parser = XMLParser(data: Data(ttml.precomposedStringWithCompatibilityMapping.utf8))
+        parser.delegate = reader
+        guard parser.parse() else { return [] }
+
+        var lines: [LyricLine] = []
+        var previousEnd = 0.0
+        for paragraph in reader.paragraphs {
+            var words: [LyricWord] = []
+            var joinsLast = false
+            for piece in paragraph.pieces {
+                guard let span = piece else { joinsLast = false; continue }
+                let text = span.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    let part = LyricWord(text: text, time: span.begin, duration: max(span.end - span.begin, 0.05))
+                    if joinsLast, let last = words.last {
+                        words[words.count - 1] = LyricWord(
+                            text: last.text + text,
+                            time: last.time,
+                            duration: part.time + part.duration - last.time,
+                            parts: (last.parts.isEmpty ? [last] : last.parts) + [part]
+                        )
+                    } else {
+                        words.append(part)
+                    }
+                }
+                joinsLast = !text.isEmpty && !(span.text.last?.isWhitespace ?? true)
+            }
+            let text = words.isEmpty
+                ? paragraph.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                : words.map(\.text).joined(separator: " ")
+            guard !text.isEmpty else { continue }
+            if paragraph.begin - previousEnd >= interludeGap {
+                lines.append(LyricLine(id: lines.count, time: previousEnd, text: ""))
+            }
+            lines.append(LyricLine(id: lines.count, time: paragraph.begin, text: text, words: words.isEmpty ? nil : words))
+            previousEnd = paragraph.end
+        }
+        return lines
+    }
+
+    // "1:02.345", "02.345", "1:01:02.3" or "62.3s".
+    static func seconds(_ text: String?) -> Double? {
+        guard var text, !text.isEmpty else { return nil }
+        if text.hasSuffix("s") { text.removeLast() }
+        var total = 0.0
+        for part in text.split(separator: ":") {
+            guard let value = Double(part) else { return nil }
+            total = total * 60 + value
+        }
+        return total
+    }
+}
+
+private final class TTMLReader: NSObject, XMLParserDelegate {
+    struct Span { var begin: Double; var end: Double; var text = "" }
+    struct Paragraph {
+        var begin: Double
+        var end: Double
+        var text = ""
+        // A span, or nil for whitespace between spans.
+        var pieces: [Span?] = []
+    }
+
+    var paragraphs: [Paragraph] = []
+    private var paragraph: Paragraph?
+    private var spans: [Span?] = []
+    private var inBody = false
+    private var backgroundDepth = 0
+
+    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
+        let local = name.split(separator: ":").last.map(String.init) ?? name
+        switch local {
+        case "body": inBody = true
+        case "p" where inBody:
+            let begin = TTMLParser.seconds(attributes["begin"]) ?? 0
+            paragraph = Paragraph(begin: begin, end: TTMLParser.seconds(attributes["end"]) ?? begin)
+        case "span" where paragraph != nil:
+            let role = attributes["ttm:role"] ?? attributes["role"]
+            if backgroundDepth > 0 || role == "x-bg" {
+                backgroundDepth += 1
+            } else if let begin = TTMLParser.seconds(attributes["begin"]) {
+                spans.append(Span(begin: begin, end: TTMLParser.seconds(attributes["end"]) ?? begin))
+            } else {
+                spans.append(nil)
+            }
+        default: break
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard paragraph != nil, backgroundDepth == 0 else { return }
+        if case .some(.some) = spans.last {
+            spans[spans.count - 1]?.text += string
+        } else if string.contains(where: \.isWhitespace) {
+            paragraph?.pieces.append(nil)
+        }
+        paragraph?.text += string
+    }
+
+    func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
+        let local = name.split(separator: ":").last.map(String.init) ?? name
+        switch local {
+        case "body": inBody = false
+        case "span" where paragraph != nil:
+            if backgroundDepth > 0 { backgroundDepth -= 1; return }
+            if let last = spans.popLast(), let span = last { paragraph?.pieces.append(span) }
+        case "p":
+            if let paragraph { paragraphs.append(paragraph) }
+            paragraph = nil
+            spans = []
+        default: break
+        }
     }
 }
 
@@ -177,6 +304,7 @@ final class LyricsClient: @unchecked Sendable {
         var instrumental = false
         var lrc: String?
         var yrc: String?
+        var ttml: String?
         var plain: String?
     }
 
@@ -196,15 +324,15 @@ final class LyricsClient: @unchecked Sendable {
     private let cacheDirectory: URL = {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let root = base.appendingPathComponent("PeaceMusic", isDirectory: true)
-        for old in ["lyrics", "lyrics-v2", "lyrics-v3"] {
+        for old in ["lyrics", "lyrics-v2", "lyrics-v3", "lyrics-v4"] {
             try? FileManager.default.removeItem(at: root.appendingPathComponent(old))
         }
-        let url = root.appendingPathComponent("lyrics-v4", isDirectory: true)
+        let url = root.appendingPathComponent("lyrics-v5", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()
 
-    func lyrics(for track: Track) async -> (Lyrics, LyricsSource?) {
+    func lyrics(for track: Track, apple: (Track) async -> String?) async -> (Lyrics, LyricsSource?) {
         let safeID = track.id.filter { $0.isLetter || $0.isNumber }
         let cacheFile = cacheDirectory.appendingPathComponent("\(safeID).json")
         if !safeID.isEmpty,
@@ -213,7 +341,13 @@ final class LyricsClient: @unchecked Sendable {
             return Self.convert(cached, track: track)
         }
 
-        let (resolved, isComplete) = await resolve(track)
+        let (resolved, isComplete): (Resolved, Bool)
+        // Apple's own lyrics time every syllable, so they win whenever the song has them.
+        if let ttml = await apple(track), TTMLParser.parse(ttml).contains(where: { $0.words != nil }) {
+            (resolved, isComplete) = (Resolved(source: .appleSyllables, ttml: ttml), true)
+        } else {
+            (resolved, isComplete) = await resolve(track)
+        }
         if isComplete, !safeID.isEmpty, let data = try? JSONEncoder().encode(resolved) {
             try? data.write(to: cacheFile)
         }
@@ -222,6 +356,10 @@ final class LyricsClient: @unchecked Sendable {
 
     private static func convert(_ resolved: Resolved, track: Track) -> (Lyrics, LyricsSource?) {
         if resolved.instrumental { return (.instrumental, nil) }
+        if let ttml = resolved.ttml {
+            let lines = TTMLParser.parse(ttml)
+            if !lines.isEmpty { return (.synced(lines), resolved.source) }
+        }
         if let yrc = resolved.yrc {
             let lines = YRCParser.parse(yrc)
             if !lines.isEmpty { return (.synced(lines), resolved.source) }

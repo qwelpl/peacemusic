@@ -160,7 +160,8 @@ final class PlayerStore {
         lyrics = .loading
         lyricsSource = nil
         Task {
-            let (result, source) = await lyricsClient.lyrics(for: current)
+            let bridge = bridge
+            let (result, source) = await lyricsClient.lyrics(for: current) { await bridge.syllableLyrics(for: $0.id) }
             guard track?.id == current.id else { return }
             lyrics = result
             lyricsSource = source
