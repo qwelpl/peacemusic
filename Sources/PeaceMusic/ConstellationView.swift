@@ -527,9 +527,11 @@ private final class ConstellationMotion {
             let start = CGPoint(x: Self.noise(seed * 1.1) * size.width, y: Self.noise(seed * 2.3) * size.height * 0.6)
             let heading = 0.35 + Self.noise(seed * 3.9) * 0.5
             let travel = min(size.width, size.height) * 0.5
-            let head = CGPoint(x: start.x + cos(heading) * travel * progress, y: start.y + sin(heading) * travel * progress)
+            let dx = CGFloat(cos(heading))
+            let dy = CGFloat(sin(heading))
+            let head = CGPoint(x: start.x + dx * travel * progress, y: start.y + dy * travel * progress)
             let tailLength = travel * 0.35
-            let tail = CGPoint(x: head.x - cos(heading) * tailLength, y: head.y - sin(heading) * tailLength)
+            let tail = CGPoint(x: head.x - dx * tailLength, y: head.y - dy * tailLength)
             var streak = Path()
             streak.move(to: tail)
             streak.addLine(to: head)
