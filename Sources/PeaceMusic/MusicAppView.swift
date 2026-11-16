@@ -730,7 +730,7 @@ private struct PlayerDock: View {
     private func row(trailing: some View) -> some View {
         HStack(spacing: 18) {
             nowPlaying
-                .frame(minWidth: 170, idealWidth: 170, maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: 120, idealWidth: 120, maxWidth: .infinity, alignment: .leading)
             transport
             trailing
                 .fixedSize()
