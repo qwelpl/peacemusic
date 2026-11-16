@@ -497,6 +497,21 @@ final class AppleMusicEngine: NSObject {
                                 'shuffleModeDidChange', 'repeatModeDidChange', 'playbackVolumeDidChange', 'queueItemsDidChange']) {
                 music.addEventListener(name, post);
             }
+            // MusicKit on the web starts out blocking explicit songs. Follow the account's own
+            // setting instead: 'explicit' means the account allows them.
+            const followRestrictions = async () => {
+                if (!music.isAuthorized) return;
+                try {
+                    const response = await music.api.music('/v1/me/account');
+                    const level = response.data?.data?.[0]?.attributes?.restrictions?.music;
+                    if (level === 'explicit' && music.restrictedEnabled) music.restrictedEnabled = false;
+                    console.warn('peace explicit: account allows ' + level + ', restricted ' + music.restrictedEnabled);
+                } catch (error) {
+                    console.warn('peace explicit: ' + error);
+                }
+            };
+            music.addEventListener('authorizationStatusDidChange', followRestrictions);
+            followRestrictions();
             setInterval(post, 1000);
             document.addEventListener('visibilitychange', () => console.warn('peace visibility: ' + document.visibilityState));
             post();
