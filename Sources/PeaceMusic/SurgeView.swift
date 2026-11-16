@@ -201,11 +201,17 @@ private final class SurgeMotion {
             guard depthFade > 0.01 else { continue }
             let path = Self.ringPath(center: center, radius: radius, shape: ring.shape, twist: spin + ring.z * 0.35)
             let color = palette[ring.color % palette.count]
-            let width = max(0.8, 2.2 / ring.z) * (1 + ring.strength * 1.5)
-            if ring.strength > 0.5 {
-                graphics.stroke(path, with: .color(color.opacity(0.25 * depthFade)), lineWidth: width * 5)
+            // Every ring flashes on the beat, the outer ones hardest.
+            let flash = kick * min(1.2 / ring.z, 1)
+            let lit = max(ring.strength, flash)
+            let width = max(0.8, 2.2 / ring.z) * (1 + ring.strength * 1.5 + flash * 1.2)
+            if lit > 0.3 {
+                graphics.stroke(path, with: .color(color.opacity(0.3 * lit * depthFade)), lineWidth: width * 5)
             }
-            graphics.stroke(path, with: .color(color.opacity((0.35 + ring.strength * 0.5) * depthFade)), lineWidth: width)
+            graphics.stroke(path, with: .color(color.opacity(min(0.35 + ring.strength * 0.5 + flash * 0.6, 1) * depthFade)), lineWidth: width)
+            if flash > 0.2 {
+                graphics.stroke(path, with: .color(.white.opacity(flash * 0.45 * depthFade)), lineWidth: max(width * 0.35, 1))
+            }
 
             // On a hit, the nearest rings split into red and cyan.
             if kick > 0.15, ring.z < 1.6, !isMono {
