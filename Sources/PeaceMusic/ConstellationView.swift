@@ -55,7 +55,7 @@ struct ConstellationView: View {
             let line = lines[index]
             guard !line.isInterlude else { return nil }
             let next = index + 1 < lines.count ? lines[index + 1].time : line.time + 6
-            let words = (line.words ?? Self.spread(line, until: next)).map(Self.sung)
+            let words = (line.words ?? Self.spread(line, until: next)).flatMap(Self.perCharacter).map(Self.sung)
             // Fade soon after the last word, so instrumental gaps go quiet.
             let end = min(next, (words.last?.end ?? line.time) + Self.holdAfterLine)
             return VocalTrace.Line(id: line.id, words: words, end: end)
@@ -71,7 +71,7 @@ struct ConstellationView: View {
     // squeezed only when the next line comes sooner. Stretching them to fill the gap
     // would keep drawing through instrumental breaks.
     private static func spread(_ line: LyricLine, until end: Double) -> [LyricWord] {
-        let texts = line.text.split(separator: " ").map(String.init)
+        let texts = line.text.split(separator: " ").flatMap { pieces(of: String($0)) }
         let counts = texts.map(syllables(in:))
         let total = Double(max(counts.reduce(0, +), 1))
         let pace = min(syllablePace, max(end - line.time, 0.5) * 0.9 / total)
@@ -81,6 +81,51 @@ struct ConstellationView: View {
             defer { time += duration }
             return LyricWord(text: text, time: time, duration: duration * 0.9)
         }
+    }
+
+    // Japanese has no spaces, so each kana or kanji draws its own line. The word's time is
+    // shared out by syllable; Latin runs inside it stay whole.
+    private static func perCharacter(_ word: LyricWord) -> [LyricWord] {
+        let texts = pieces(of: word.text)
+        guard texts.count > 1 else { return [word] }
+        let counts = texts.map(syllables(in:))
+        let total = Double(counts.reduce(0, +))
+        var time = word.time
+        return zip(texts, counts).map { text, count in
+            let duration = word.duration * Double(count) / total
+            defer { time += duration }
+            return LyricWord(text: text, time: time, duration: duration)
+        }
+    }
+
+    private static func pieces(of text: String) -> [String] {
+        guard text.contains(where: isJapanese) else { return [text] }
+        var pieces: [String] = []
+        var run = ""
+        for character in text {
+            if isJapanese(character) || isJapanesePunctuation(character) || character.isWhitespace {
+                if !run.isEmpty { pieces.append(run) }
+                run = ""
+                if isJapanese(character) { pieces.append(String(character)) }
+            } else {
+                run.append(character)
+            }
+        }
+        if !run.isEmpty { pieces.append(run) }
+        return pieces
+    }
+
+    private static func isJapanese(_ character: Character) -> Bool {
+        guard let scalar = character.unicodeScalars.first?.value else { return false }
+        return ((0x3040...0x30FF).contains(scalar) && scalar != 0x30FB)    // kana, not the middle dot
+            || (0x3400...0x4DBF).contains(scalar)    // rare kanji
+            || (0x4E00...0x9FFF).contains(scalar)    // kanji
+            || (0xFF66...0xFF9F).contains(scalar)    // half-width kana
+    }
+
+    private static func isJapanesePunctuation(_ character: Character) -> Bool {
+        guard let scalar = character.unicodeScalars.first?.value else { return false }
+        return (0x3000...0x303F).contains(scalar) || (0xFF01...0xFF0F).contains(scalar) || (0xFF1A...0xFF20).contains(scalar)
     }
 
     // Splits a word's sung time evenly across its syllables.
