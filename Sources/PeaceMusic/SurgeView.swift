@@ -58,16 +58,6 @@ private final class SurgeMotion {
         let strength: Double
     }
 
-    // A ring timed to reach the edge of the screen on a beat. It's placed from its beat
-    // time each frame, so it arrives on time whatever the speed does on the way.
-    private struct BeatRing {
-        var time: Date
-        let shape: [Float]
-        let color: Int
-        // Matched to a bass hit actually heard, rather than only predicted.
-        var confirmed: Bool
-    }
-
     private struct Streak {
         var angle: Double
         var z: Double
@@ -79,8 +69,6 @@ private final class SurgeMotion {
     private static let spacing = 0.2
     private static let ringPoints = 180
     private static let streakCount = 160
-    // Where a beat ring is on the beat: right at the edge of the screen.
-    private static let arrival = 0.4
 
     private var rings: [Ring] = []
     private var streaks: [Streak] = []
@@ -101,10 +89,6 @@ private final class SurgeMotion {
     private var drop = 0.0
     private var sinceDrop = Double.infinity
     private var track: String?
-    private var beatRings: [BeatRing] = []
-    private var hitDates: [Date] = []
-    private var period: Double?
-    private var nextBeat: Date?
 
     func draw(
         in graphics: inout GraphicsContext,
@@ -134,7 +118,7 @@ private final class SurgeMotion {
         if hitAge < lastHitAge, hitAge < 0.1 {
             kick = 1
             shake = CGSize(width: Double.random(in: -1...1), height: Double.random(in: -1...1))
-            hit(at: date.addingTimeInterval(-hitAge), shape: pulse.spectrum)
+            spawn(shape: pulse.spectrum, strength: 1, palette: palette)
         }
         lastHitAge = hitAge
         kick *= exp(-step / 0.16)
@@ -143,10 +127,6 @@ private final class SurgeMotion {
             track = trackID
             hypeHistory = []
             recentLevels = []
-            beatRings = []
-            hitDates = []
-            period = nil
-            nextBeat = nil
         }
         let level = hypeLevel(pulse: pulse, high: high, step: step)
 
@@ -168,9 +148,6 @@ private final class SurgeMotion {
         let rush = min(max((speed - 0.25) / 3.8, 0), 1)
         if drop > 0.05 { kick = max(kick, drop * 0.5) }
         spin += step * (0.08 + pulse.mid * 0.5)
-
-        scheduleBeats(now: date, shape: pulse.spectrum)
-        beatRings.removeAll { Self.arrival + $0.time.timeIntervalSince(date) * speed < Self.near }
 
         for index in rings.indices { rings[index].z -= step * speed }
         rings.removeAll { $0.z < Self.near }
@@ -217,16 +194,8 @@ private final class SurgeMotion {
         }
         graphics.stroke(streakPath, with: .color(.white.opacity(0.12 + rush * 0.6)), lineWidth: 1 + rush)
 
-        var drawn = rings
-        for beat in beatRings {
-            let z = Self.arrival + beat.time.timeIntervalSince(date) * speed
-            guard z <= Self.far else { continue }
-            let missed = !beat.confirmed && date.timeIntervalSince(beat.time) > 0.1
-            drawn.append(Ring(z: z, shape: beat.shape, color: beat.color, strength: beat.confirmed ? 1 : missed ? 0.3 : 0.75))
-        }
         // Far rings first, so near ones draw over them.
-        drawn.sort { $0.z > $1.z }
-        for ring in drawn {
+        for ring in rings.reversed() {
             let radius = base / ring.z
             let depthFade = min((Self.far - ring.z) / 1.6, 1) * min(ring.z / 0.5, 1)
             guard depthFade > 0.01 else { continue }
@@ -268,53 +237,6 @@ private final class SurgeMotion {
             startRadius: min(size.width, size.height) * 0.3,
             endRadius: max(size.width, size.height) * 0.75
         ))
-    }
-
-    // A bass hit lands on the predicted ring nearest it, which lights up for good, and the
-    // beats after it are predicted again from this hit.
-    private func hit(at time: Date, shape: [Float]) {
-        hitDates.append(time)
-        if hitDates.count > 12 { hitDates.removeFirst() }
-        period = Self.steadyPeriod(hitDates)
-
-        let tolerance = (period ?? 0.4) * 0.3
-        if let index = beatRings.firstIndex(where: { !$0.confirmed && abs($0.time.timeIntervalSince(time)) < tolerance }) {
-            beatRings[index].time = time
-            beatRings[index].confirmed = true
-        } else {
-            // Nothing predicted it, so it appears right at the edge.
-            beatRings.append(BeatRing(time: time, shape: shape, color: spawned / 3, confirmed: true))
-            spawned += 1
-        }
-        beatRings.removeAll { !$0.confirmed && $0.time > time }
-        nextBeat = period.map { time.addingTimeInterval($0) }
-    }
-
-    // Sends rings down the tunnel ahead of the predicted beats, far enough out to fly in.
-    // Prediction stops a few seconds after the last real hit, when the beat has dropped out.
-    private func scheduleBeats(now: Date, shape: [Float]) {
-        guard let period, var next = nextBeat, let lastHit = hitDates.last else { return }
-        while next < now { next.addTimeInterval(period) }
-        let horizon = (Self.far - Self.arrival) / max(speed, 0.1)
-        while next.timeIntervalSince(now) < horizon, next.timeIntervalSince(lastHit) < 4 {
-            beatRings.append(BeatRing(time: next, shape: shape, color: spawned / 3, confirmed: false))
-            spawned += 1
-            next.addTimeInterval(period)
-        }
-        nextBeat = next
-    }
-
-    // The beat's period, when the recent hits keep a steady tempo. A skipped beat (a gap
-    // of two) still counts as steady.
-    private static func steadyPeriod(_ hits: [Date]) -> Double? {
-        let gaps = zip(hits, hits.dropFirst()).map { $1.timeIntervalSince($0) }.filter { (0.25...1.6).contains($0) }
-        guard gaps.count >= 4 else { return nil }
-        let sorted = gaps.sorted()
-        let median = sorted[sorted.count / 2]
-        let steady = gaps.filter { gap in
-            [1.0, 2.0].contains { abs(gap / median - $0) < 0.15 * $0 }
-        }
-        return Double(steady.count) >= Double(gaps.count) * 0.6 ? median : nil
     }
 
     // Where this moment's hype ranks among everything heard so far in the song, from 0 to 1.
