@@ -29,6 +29,8 @@ struct MusicAppView: View {
     // True once Now Playing fully covers the window, so the browser underneath can stop drawing.
     @State private var nowPlayingCovers = false
     @AppStorage("showsSongPanel") private var showsSongPanel = true
+    // Whether the window is wide enough for the song panel beside the sidebar and the page.
+    @State private var songPanelFits = true
 
     @State private var songTheme = SongTheme()
     @State private var menus = MenuPresenter()
@@ -70,6 +72,9 @@ struct MusicAppView: View {
         }
     }
 
+    // Padding, sidebar, gaps, panel, and the narrowest the page should get beside them.
+    private static let songPanelMinimumWidth: CGFloat = 12 + 236 + 12 + 320 + 12 + 12 + 700
+
     private var browser: some View {
         ZStack {
             if !nowPlayingCovers {
@@ -79,7 +84,8 @@ struct MusicAppView: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .layoutPriority(2)
                 main
-                if showsSongPanel, store.track != nil {
+                    .frame(minWidth: 0, maxWidth: .infinity)
+                if showsSongPanel, songPanelFits, store.track != nil {
                     NowPlayingPanel(openNowPlaying: openNowPlaying)
                         .frame(width: 320)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -97,6 +103,9 @@ struct MusicAppView: View {
                     .zIndex(2)
             }
         }
+        // Sidebar, page and panel never squeeze each other off screen: when the window is too
+        // narrow for all three, the panel steps aside until there's room again.
+        .onGeometryChange(for: Bool.self) { $0.size.width >= Self.songPanelMinimumWidth } action: { songPanelFits = $0 }
         .environment(\.openItem, open)
         .environment(\.menuPresenter, menus)
         .onChange(of: query) { if !query.isEmpty { path = [] } }
