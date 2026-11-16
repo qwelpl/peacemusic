@@ -47,6 +47,8 @@ struct MediaItem: Identifiable, Hashable {
     let albumID: String?
     // A library playlist the account can change.
     let canEdit: Bool
+    // A library playlist's public id (pl.u-…), which is what other pages link to.
+    let globalID: String?
 
     var isPlayable: Bool { kind.queueKey != nil && (playID ?? id).isEmpty == false }
     var queueID: String { playID ?? id }
@@ -96,6 +98,7 @@ struct MediaItem: Identifiable, Hashable {
         artistID = ((relationships?["artists"] as? [String: Any])?["data"] as? [[String: Any]])?.first?["id"] as? String
         albumID = ((relationships?["albums"] as? [String: Any])?["data"] as? [[String: Any]])?.first?["id"] as? String
         canEdit = attributes["canEdit"] as? Bool ?? false
+        globalID = playParams?["globalId"] as? String
     }
 
     static func list(_ value: Any?) -> [MediaItem] {

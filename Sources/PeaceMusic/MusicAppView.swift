@@ -490,7 +490,7 @@ private struct CollectionPage: View {
             .padding(.horizontal, Layout.gutter)
 
             if let tracks {
-                SongList(songs: tracks, collection: item, showsArtwork: item.kind != .album, showsAlbum: item.kind != .album)
+                SongList(songs: tracks, collection: shown, showsArtwork: item.kind != .album, showsAlbum: item.kind != .album)
                     .padding(.horizontal, Layout.gutter - 12)
                     .environment(\.editablePlaylist, shown.canEdit ? shown : nil)
             } else {
@@ -499,7 +499,10 @@ private struct CollectionPage: View {
         }
         .background(alignment: .top) { Backdrop(item: shown) }
         .task(id: item.id) {
-            let (loaded, songs) = await store.catalog.collection(item) { partial, partialTracks in
+            // Home and search link to the public copy of the account's own playlists. Open the
+            // library one instead, whose songs and edits belong to the account.
+            let source = item.isLibrary ? item : store.libraryPlaylists.first { $0.globalID == item.id } ?? item
+            let (loaded, songs) = await store.catalog.collection(source) { partial, partialTracks in
                 withAnimation(.easeOut(duration: 0.3)) {
                     detail = partial
                     tracks = partialTracks
