@@ -9,6 +9,7 @@ struct ConstellationView: View {
     @Environment(\.musicAnalyzer) private var analyzer
     @Environment(\.uiTheme) private var theme
     @State private var motion = ConstellationMotion()
+    @State private var timing = UntimedLines()
     @AppStorage(FrameRate.key) private var frameRate = FrameRate.standard
     @AppStorage(FrameRate.savesBatteryKey) private var savesBattery = true
 
@@ -21,8 +22,8 @@ struct ConstellationView: View {
             TimelineView(.animation(minimumInterval: FrameRate.interval(frameRate, savesBattery: savesBattery), paused: !store.isPlaying)) { context in
                 let audio = analyzer.reading
                 let pulse = OrbitPulse(store: store, audio: audio, at: context.date)
-                let vocals = vocalTrace(at: context.date)
                 let voiceHits = audio.hasSignal ? audio.onsets.filter { !$0.isBass }.map(\.date) : []
+                let vocals = vocalTrace(at: context.date, voiceHits: voiceHits)
                 Canvas { graphics, size in
                     motion.draw(
                         in: &graphics,
@@ -45,9 +46,11 @@ struct ConstellationView: View {
     }
 
     // The current and previous lyric lines, with a start time for every syllable.
-    private func vocalTrace(at date: Date) -> VocalTrace? {
+    private func vocalTrace(at date: Date, voiceHits: [Date]) -> VocalTrace? {
         guard case .synced(let lines) = store.lyrics else { return nil }
         let position = store.lyricPosition(at: date)
+        timing.record(voiceHits.map(store.lyricPosition(at:)), position: position, trackID: store.track?.id)
+        let pace = timing.pace(for: lines, trackID: store.track?.id)
         guard let current = lines.lastIndex(where: { $0.time <= position }) else {
             return VocalTrace(lines: [], position: position)
         }
@@ -56,9 +59,10 @@ struct ConstellationView: View {
             guard !line.isInterlude else { return nil }
             let next = index + 1 < lines.count ? lines[index + 1].time : line.time + 6
             let japanese = line.text.contains(where: Self.isKana)
-            let words = (line.words ?? Self.spread(line, until: next, japanese: japanese))
+            var words = (line.words ?? Self.spread(line, until: next, japanese: japanese, pace: pace))
                 .flatMap { Self.perWord($0, japanese: japanese) }
                 .map(Self.sung)
+            if line.words == nil { words = timing.snap(words, pace: pace) }
             // Fade soon after the last word, so instrumental gaps go quiet.
             let end = min(next, (words.last?.end ?? line.time) + Self.holdAfterLine)
             return VocalTrace.Line(id: line.id, words: words, end: end)
@@ -67,13 +71,11 @@ struct ConstellationView: View {
     }
 
     private static let holdAfterLine = 1.5
-    // A typical sung syllable, used when a line has no word timing.
-    private static let syllablePace = 0.27
 
     // Lines without word timing are sung from the line's start at a steady syllable pace,
     // squeezed only when the next line comes sooner. Stretching them to fill the gap
     // would keep drawing through instrumental breaks.
-    private static func spread(_ line: LyricLine, until end: Double, japanese: Bool) -> [LyricWord] {
+    fileprivate static func spread(_ line: LyricLine, until end: Double, japanese: Bool, pace syllablePace: Double) -> [LyricWord] {
         let chunks = line.text.split(separator: " ").map { chunk in
             (text: String(chunk), beats: beats(in: String(chunk), japanese: japanese).reduce(0) { $0 + $1.beats })
         }
@@ -173,7 +175,7 @@ struct ConstellationView: View {
 
     // The text's pieces, each CJK character or Latin run, with where each starts and how
     // many beats it's sung for.
-    private static func beats(in text: String, japanese: Bool) -> [(text: String, offset: Int, beats: Double)] {
+    fileprivate static func beats(in text: String, japanese: Bool) -> [(text: String, offset: Int, beats: Double)] {
         guard text.contains(where: isCJK) else { return [(text, 0, Double(syllables(in: text)))] }
         let morae = japanese ? Self.morae(in: text) : []
         var pieces: [(text: String, offset: Int, beats: Double)] = []
@@ -233,7 +235,7 @@ struct ConstellationView: View {
         character.unicodeScalars.first?.value ?? 0
     }
 
-    private static func isKana(_ character: Character) -> Bool {
+    fileprivate static func isKana(_ character: Character) -> Bool {
         let value = scalar(character)
         return ((0x3040...0x30FF).contains(value) && value != 0x30FB) || (0xFF66...0xFF9F).contains(value)
     }
@@ -279,6 +281,73 @@ struct ConstellationView: View {
         }
         if count > 1, letters.hasSuffix("e"), !letters.hasSuffix("le") { count -= 1 }
         return min(max(count, 1), 6)
+    }
+}
+
+// Times syllables for lyrics that only say when each line starts. The pace comes from the
+// song itself: how long its lines take for the syllables they hold. Live, each syllable
+// snaps to a vocal attack heard near where it was expected, carrying the rest along.
+private final class UntimedLines {
+    private static let defaultPace = 0.27
+    private static let maxShift = 0.6
+
+    private var paceTrack: String?
+    private var paceLines = 0
+    private var cachedPace = defaultPace
+    private var onsetTrack: String?
+    private var onsets: [Double] = []
+
+    func pace(for lines: [LyricLine], trackID: String?) -> Double {
+        if trackID == paceTrack, lines.count == paceLines { return cachedPace }
+        paceTrack = trackID
+        paceLines = lines.count
+        var rates: [Double] = []
+        for (line, next) in zip(lines, lines.dropFirst()) where !line.isInterlude && !next.isInterlude && line.words == nil {
+            let japanese = line.text.contains(where: ConstellationView.isKana)
+            let beats = line.text.split(separator: " ")
+                .flatMap { ConstellationView.beats(in: String($0), japanese: japanese) }
+                .reduce(0) { $0 + $1.beats }
+            guard beats >= 3 else { continue }
+            // A line usually leaves a breath before the next one.
+            rates.append((next.time - line.time) * 0.85 / beats)
+        }
+        let sorted = rates.sorted()
+        cachedPace = sorted.isEmpty ? Self.defaultPace : min(max(sorted[sorted.count / 2], 0.12), 0.45)
+        return cachedPace
+    }
+
+    func record(_ hits: [Double], position: Double, trackID: String?) {
+        if trackID != onsetTrack {
+            onsetTrack = trackID
+            onsets = []
+        }
+        // Seeking back leaves hits from the future.
+        onsets.removeAll { $0 > position + 0.5 }
+        for hit in hits where hit <= position && !onsets.contains(where: { abs($0 - hit) < 0.03 }) {
+            onsets.append(hit)
+        }
+        onsets.sort()
+        if onsets.count > 400 { onsets.removeFirst(onsets.count - 400) }
+    }
+
+    func snap(_ words: [SungWord], pace: Double) -> [SungWord] {
+        guard !onsets.isEmpty else { return words }
+        var shift = 0.0
+        var previous = -Double.infinity
+        return words.map { word in
+            var syllables: [Double] = []
+            for predicted in word.syllables {
+                let expected = predicted + shift
+                let window = (expected - pace * 0.4)...(expected + pace * 0.6)
+                if let onset = onsets.first(where: { window.contains($0) && $0 > previous + 0.08 }) {
+                    shift = min(max(onset - predicted, -Self.maxShift), Self.maxShift)
+                }
+                let start = max(predicted + shift, previous + 0.05)
+                syllables.append(start)
+                previous = start
+            }
+            return SungWord(syllables: syllables, end: max(word.end + shift, previous + 0.1))
+        }
     }
 }
 
