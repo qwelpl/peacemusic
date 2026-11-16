@@ -392,6 +392,7 @@ extension PlayerMode {
         case .halftone: "Halftone"
         case .orbit: "Orbit"
         case .constellation: "Constellation"
+        case .surge: "Surge"
         }
     }
 
@@ -402,6 +403,7 @@ extension PlayerMode {
         case .halftone: "circle.grid.3x3.fill"
         case .orbit: "circle.dotted.circle"
         case .constellation: "sparkles"
+        case .surge: "tornado"
         }
     }
 }
