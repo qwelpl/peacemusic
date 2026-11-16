@@ -650,39 +650,17 @@ private struct PlayerDock: View {
     @Environment(MiniPlayerController.self) private var miniPlayer
     @State private var dragValue: Double?
     @State private var isHovered = false
-    @State private var rowWidth: CGFloat = 0
-    @State private var transportWidth: CGFloat = 0
-    @State private var fullTrailingWidth: CGFloat = 0
-
-    private static let songMinimumWidth: CGFloat = 170
-    private static let rowSpacing: CGFloat = 18
-
-    // The song and the buttons split the room either side of the transport evenly, which
-    // left the buttons half the spare room however short the song name was. Measure
-    // instead: the full set shows whenever the song still keeps its minimum beside it.
-    private var showsFullTrailing: Bool {
-        fullTrailingWidth > 0
-            && rowWidth - transportWidth - Self.songMinimumWidth - Self.rowSpacing * 2 >= fullTrailingWidth
-    }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: Self.rowSpacing) {
-                nowPlaying
-                    .frame(minWidth: Self.songMinimumWidth, maxWidth: .infinity, alignment: .leading)
-                transport
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { transportWidth = $0 }
-                trailing
-                    .frame(minWidth: showsFullTrailing ? fullTrailingWidth : 0, maxWidth: .infinity, alignment: .trailing)
-            }
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
-            .background {
-                fullTrailing
-                    .fixedSize()
-                    .hidden()
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullTrailingWidth = $0 }
+            // The full set of buttons whenever it fits with the song name at its minimum,
+            // the shorter sets otherwise. ViewThatFits judges each row by its ideal width,
+            // where the song name counts as its minimum, and nothing is remembered between
+            // layouts, so a dock rebuilt after Now Playing closes picks the same row.
+            ViewThatFits(in: .horizontal) {
+                row(trailing: fullTrailing)
+                row(trailing: compactTrailing)
+                row(trailing: OutputPicker())
             }
             .padding(.horizontal, 14)
             .frame(height: 70)
@@ -749,25 +727,24 @@ private struct PlayerDock: View {
         }
     }
 
-    // Drops the less used buttons when the dock gets narrow, so the song name keeps its room.
-    @ViewBuilder
-    private var trailing: some View {
-        if showsFullTrailing {
-            fullTrailing
-        } else {
-            compactTrailing
+    private func row(trailing: some View) -> some View {
+        HStack(spacing: 18) {
+            nowPlaying
+                .frame(minWidth: 170, idealWidth: 170, maxWidth: .infinity, alignment: .leading)
+            transport
+            trailing
+                .fixedSize()
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
+    // Drops the less used buttons when the dock gets narrow, so the song name keeps its room.
     private var compactTrailing: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
-                dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
-                    .help("Love")
-                dockButton("sidebar.right", size: 14, dimmed: !showsSongPanel) { showsSongPanel.toggle() }
-                    .help("Song details, lyrics and Up Next")
-                OutputPicker()
-            }
+        HStack(spacing: 6) {
+            dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
+                .help("Love")
+            dockButton("sidebar.right", size: 14, dimmed: !showsSongPanel) { showsSongPanel.toggle() }
+                .help("Song details, lyrics and Up Next")
             OutputPicker()
         }
     }
