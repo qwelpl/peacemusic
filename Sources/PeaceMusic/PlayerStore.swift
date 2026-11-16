@@ -165,6 +165,10 @@ final class PlayerStore {
             guard track?.id == current.id else { return }
             lyrics = result
             lyricsSource = source
+            // Fetch the next songs' lyrics now, so they're ready the moment each one starts.
+            for upcoming in await bridge.upcoming(3) where track?.id == current.id {
+                _ = await lyricsClient.lyrics(for: upcoming) { await bridge.syllableLyrics(for: $0.id) }
+            }
         }
     }
 

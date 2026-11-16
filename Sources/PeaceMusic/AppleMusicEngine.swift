@@ -230,6 +230,29 @@ final class AppleMusicEngine: NSObject {
         return (entries, object["position"] as? Int ?? 0)
     }
 
+    /// The songs queued after the current one.
+    func upcoming(_ count: Int) async -> [Track] {
+        let result = try? await call("""
+        const start = music.queue.position + 1;
+        return JSON.stringify(music.queue.items.slice(start, start + count).map(item => ({
+            id: item.id, title: item.title || '', artist: item.artistName || '',
+            album: item.albumName || '', duration: item.playbackDuration || 0,
+        })));
+        """, ["count": count])
+        guard let text = result as? String, let data = text.data(using: .utf8),
+              let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return items.compactMap { item in
+            guard let id = item["id"] as? String else { return nil }
+            return Track(
+                id: id,
+                title: item["title"] as? String ?? "",
+                artist: item["artist"] as? String ?? "",
+                album: item["album"] as? String ?? "",
+                duration: (item["duration"] as? Double ?? 0) / 1000
+            )
+        }
+    }
+
     func jump(toQueueIndex index: Int) {
         send("await music.changeToMediaAtIndex(index)", ["index": index])
     }

@@ -59,9 +59,11 @@ struct ConstellationView: View {
             guard !line.isInterlude else { return nil }
             let next = index + 1 < lines.count ? lines[index + 1].time : line.time + 6
             let japanese = line.text.contains(where: Self.isKana)
-            var words = (line.words ?? Self.spread(line, until: next, japanese: japanese, pace: pace))
-                .flatMap { Self.perWord($0, japanese: japanese) }
-                .map(Self.sung)
+            var words = timing.layout(of: line) {
+                (line.words ?? Self.spread(line, until: next, japanese: japanese, pace: pace))
+                    .flatMap { Self.perWord($0, japanese: japanese) }
+                    .map(Self.sung)
+            }
             if line.words == nil { words = timing.snap(words, pace: pace) }
             // Fade soon after the last word, so instrumental gaps go quiet.
             let end = min(next, (words.last?.end ?? line.time) + Self.holdAfterLine)
@@ -294,6 +296,8 @@ private final class UntimedLines {
     private var paceTrack: String?
     private var paceLines = 0
     private var cachedPace = defaultPace
+    // Each line's words and syllables, worked out once.
+    private var layouts: [Int: [SungWord]] = [:]
     private var onsetTrack: String?
     private var onsets: [Double] = []
 
@@ -301,6 +305,7 @@ private final class UntimedLines {
         if trackID == paceTrack, lines.count == paceLines { return cachedPace }
         paceTrack = trackID
         paceLines = lines.count
+        layouts = [:]
         var rates: [Double] = []
         for (line, next) in zip(lines, lines.dropFirst()) where !line.isInterlude && !next.isInterlude && line.words == nil {
             let japanese = line.text.contains(where: ConstellationView.isKana)
@@ -314,6 +319,13 @@ private final class UntimedLines {
         let sorted = rates.sorted()
         cachedPace = sorted.isEmpty ? Self.defaultPace : min(max(sorted[sorted.count / 2], 0.12), 0.45)
         return cachedPace
+    }
+
+    func layout(of line: LyricLine, _ make: () -> [SungWord]) -> [SungWord] {
+        if let cached = layouts[line.id] { return cached }
+        let words = make()
+        layouts[line.id] = words
+        return words
     }
 
     func record(_ hits: [Double], position: Double, trackID: String?) {
