@@ -45,6 +45,8 @@ struct MediaItem: Identifiable, Hashable {
     let composer: String?
     let artistID: String?
     let albumID: String?
+    // A library playlist the account can change.
+    let canEdit: Bool
 
     var isPlayable: Bool { kind.queueKey != nil && (playID ?? id).isEmpty == false }
     var queueID: String { playID ?? id }
@@ -93,6 +95,7 @@ struct MediaItem: Identifiable, Hashable {
         let relationships = resource["relationships"] as? [String: Any]
         artistID = ((relationships?["artists"] as? [String: Any])?["data"] as? [[String: Any]])?.first?["id"] as? String
         albumID = ((relationships?["albums"] as? [String: Any])?["data"] as? [[String: Any]])?.first?["id"] as? String
+        canEdit = attributes["canEdit"] as? Bool ?? false
     }
 
     static func list(_ value: Any?) -> [MediaItem] {
@@ -357,6 +360,29 @@ struct MusicCatalog {
         } else {
             _ = await engine.api(path, method: "DELETE")
         }
+    }
+
+    /// Takes a song or album out of the library. True when Apple confirms it.
+    func removeFromLibrary(_ item: MediaItem) async -> Bool {
+        guard item.isLibrary, let type = item.kind.ratingPath else { return false }
+        return Self.succeeded(await engine.api("/v1/me/library/\(type)/\(item.id)", method: "DELETE"))
+    }
+
+    /// Takes every copy of a song out of one of the account's playlists.
+    func remove(_ item: MediaItem, fromPlaylist playlist: MediaItem) async -> Bool {
+        let type = item.isLibrary ? "library-songs" : "songs"
+        let response = await engine.api(
+            "/v1/me/library/playlists/\(playlist.id)/tracks",
+            ["ids[\(type)]": item.id, "mode": "all"],
+            method: "DELETE"
+        )
+        return Self.succeeded(response)
+    }
+
+    // MusicKit hands back Apple's errors as data rather than throwing.
+    private static func succeeded(_ response: [String: Any]?) -> Bool {
+        guard let response else { return false }
+        return response["errors"] == nil
     }
 
     func add(_ item: MediaItem, toPlaylist playlist: MediaItem) async {

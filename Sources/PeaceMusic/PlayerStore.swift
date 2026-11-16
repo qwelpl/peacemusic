@@ -27,6 +27,9 @@ final class PlayerStore {
 
     private(set) var playlists: [Playlist] = []
     private(set) var libraryPlaylists: [MediaItem] = []
+    // Songs taken out this session: a song's id when it left the library, or
+    // "playlist/song" when it left one playlist. Lists hide them straight away.
+    var removedItems: Set<String> = []
 
     var isPlaying: Bool { state == .playing }
 

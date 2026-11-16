@@ -9,10 +9,13 @@ final class MenuPresenter {
     private(set) var item: MediaItem?
     // Where the menu opens, in window coordinates with the origin at the top left.
     private(set) var anchor: CGPoint = .zero
+    // The playlist the item was opened from, when the account can change it.
+    private(set) var playlist: MediaItem?
 
-    func show(_ item: MediaItem, at point: CGPoint) {
+    func show(_ item: MediaItem, at point: CGPoint, in playlist: MediaItem? = nil) {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
             self.item = item
+            self.playlist = playlist
             anchor = point
         }
     }
@@ -24,6 +27,8 @@ final class MenuPresenter {
 
 extension EnvironmentValues {
     @Entry var menuPresenter: MenuPresenter? = nil
+    // Set inside an editable playlist, so its songs' menus can take them out of it.
+    @Entry var editablePlaylist: MediaItem? = nil
 }
 
 extension View {
@@ -37,10 +42,11 @@ private struct ItemMenuModifier: ViewModifier {
     let item: MediaItem
 
     @Environment(\.menuPresenter) private var presenter
+    @Environment(\.editablePlaylist) private var playlist
 
     func body(content: Content) -> some View {
         content.overlay {
-            RightClickCatcher { point in presenter?.show(item, at: point) }
+            RightClickCatcher { point in presenter?.show(item, at: point, in: playlist) }
         }
     }
 }
@@ -87,10 +93,11 @@ struct MoreButton: View {
     var glass = false
 
     @Environment(\.menuPresenter) private var presenter
+    @Environment(\.editablePlaylist) private var playlist
 
     var body: some View {
         Button {
-            presenter?.show(item, at: Self.pointer())
+            presenter?.show(item, at: Self.pointer(), in: playlist)
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: glass ? 14 : 13, weight: .bold))
@@ -217,6 +224,28 @@ struct MenuLayer: View {
             MenuDivider()
             MenuRow(title: "Love", symbol: "heart") { run { Task { await store.catalog.rate(item, 1) } } }
             MenuRow(title: "Suggest Less", symbol: "hand.thumbsdown") { run { Task { await store.catalog.rate(item, -1) } } }
+        }
+        if item.kind == .song, let playlist = presenter.playlist {
+            MenuDivider()
+            MenuRow(title: "Remove from Playlist", symbol: "minus.circle") {
+                run { remove("\(playlist.id)/\(item.id)") { await store.catalog.remove(item, fromPlaylist: playlist) } }
+            }
+        }
+        if item.isLibrary, item.kind == .song || item.kind == .album {
+            if presenter.playlist == nil { MenuDivider() }
+            MenuRow(title: "Remove from Library", symbol: "trash") {
+                run { remove(item.id) { await store.catalog.removeFromLibrary(item) } }
+            }
+        }
+    }
+
+    // Hides the item at once, and puts it back if Apple refuses.
+    private func remove(_ key: String, _ request: @escaping () async -> Bool) {
+        withAnimation(.easeOut(duration: 0.25)) { _ = store.removedItems.insert(key) }
+        Task {
+            if !(await request()) {
+                withAnimation(.easeOut(duration: 0.25)) { _ = store.removedItems.remove(key) }
+            }
         }
     }
 

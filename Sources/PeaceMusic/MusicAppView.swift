@@ -307,7 +307,7 @@ private struct LibraryPage: View {
     private func grid(_ load: @escaping (_ update: @escaping ([MediaItem]) -> Void) async -> [MediaItem]) -> some View {
         Loading(load: load, isEmpty: { $0.isEmpty }) { items in
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 24, alignment: .top)], spacing: 28) {
-                ForEach(items) { ItemTile(item: $0, size: 160) }
+                ForEach(items.filter { !store.removedItems.contains($0.id) }) { ItemTile(item: $0, size: 160) }
             }
             .padding(.horizontal, Layout.gutter)
         }
@@ -492,6 +492,7 @@ private struct CollectionPage: View {
             if let tracks {
                 SongList(songs: tracks, collection: item, showsArtwork: item.kind != .album, showsAlbum: item.kind != .album)
                     .padding(.horizontal, Layout.gutter - 12)
+                    .environment(\.editablePlaylist, shown.canEdit ? shown : nil)
             } else {
                 ProgressView().frame(maxWidth: .infinity, minHeight: 200)
             }

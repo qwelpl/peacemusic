@@ -458,10 +458,13 @@ struct SongList: View {
     @Environment(PlayerStore.self) private var store
 
     var body: some View {
+        let shown = songs.filter { song in
+            !store.removedItems.contains(song.id) && !store.removedItems.contains("\(collection?.id ?? "")/\(song.id)")
+        }
         LazyVStack(spacing: 2) {
-            ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
+            ForEach(Array(shown.enumerated()), id: \.offset) { index, song in
                 SongRow(song: song, index: index, showsArtwork: showsArtwork, showsAlbum: showsAlbum) {
-                    store.play(songs, at: index, in: collection)
+                    store.play(shown, at: index, in: collection)
                 }
             }
         }
