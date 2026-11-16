@@ -309,33 +309,15 @@ struct HeroCard: View {
         ZStack(alignment: .leading) {
             BlurredArtwork(item: item)
                 .overlay(LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.1)], startPoint: .leading, endPoint: .trailing))
-            HStack(spacing: 32) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(eyebrow)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.65))
-                    Text(item.title)
-                        .font(.system(size: 42, weight: .heavy))
-                        .tracking(-0.8)
-                        .lineLimit(2)
-                    if !item.subtitle.isEmpty {
-                        Text(item.subtitle)
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.75))
-                    }
-                    if let note = item.note {
-                        Text(note.strippingTags)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .lineLimit(2)
-                            .frame(maxWidth: 460, alignment: .leading)
-                    }
-                    PlayButtons(item: item, play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
-                        .padding(.top, 8)
+            // The cover steps aside when the card is too narrow for it beside the buttons.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 32) {
+                    details
+                    Spacer(minLength: 0)
+                    Artwork(item: item, size: 250, cornerRadius: 16, glow: 1)
+                        .rotation3DEffect(.degrees(isHovered ? -4 : -9), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
                 }
-                Spacer(minLength: 0)
-                Artwork(item: item, size: 250, cornerRadius: 16, glow: 1)
-                    .rotation3DEffect(.degrees(isHovered ? -4 : -9), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+                details
             }
             .padding(.horizontal, 44)
         }
@@ -347,6 +329,36 @@ struct HeroCard: View {
         .onTapGesture { openItem(item) }
         .onHover { hovering in withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { isHovered = hovering } }
         .itemMenu(item)
+    }
+
+    private var details: some View {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(eyebrow)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.65))
+                    Text(item.title)
+                        .font(.system(size: 42, weight: .heavy))
+                        .tracking(-0.8)
+                        .lineLimit(2)
+                        .yieldsWidth()
+                    if !item.subtitle.isEmpty {
+                        Text(item.subtitle)
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(1)
+                            .yieldsWidth()
+                    }
+                    if let note = item.note {
+                        Text(note.strippingTags)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(2)
+                            .frame(maxWidth: 460, alignment: .leading)
+                            .yieldsWidth()
+                    }
+                    PlayButtons(item: item, play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
+                        .padding(.top, 8)
+                }
     }
 }
 
@@ -488,6 +500,14 @@ enum Layout {
     static let gutter: CGFloat = 34
     static let topInset: CGFloat = 64
     static let bottomInset: CGFloat = 130
+}
+
+extension View {
+    // Text that wraps or truncates to whatever room it gets. Its ideal width stays small, so
+    // ViewThatFits judges a header by its buttons and artwork, not by how long a title is.
+    func yieldsWidth(alignment: Alignment = .leading) -> some View {
+        frame(minWidth: 0, idealWidth: 160, maxWidth: .infinity, alignment: alignment)
+    }
 }
 
 struct ShelfView: View {

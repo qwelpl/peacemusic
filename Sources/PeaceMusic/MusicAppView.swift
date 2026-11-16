@@ -85,6 +85,8 @@ struct MusicAppView: View {
                     .layoutPriority(2)
                 main
                     .frame(minWidth: 0, maxWidth: .infinity)
+                    // Anything still too wide is cut off here instead of spilling over the sidebar.
+                    .clipShape(.rect(cornerRadius: 24, style: .continuous))
                 if showsSongPanel, songPanelFits, store.track != nil {
                     NowPlayingPanel(openNowPlaying: openNowPlaying)
                         .frame(width: 320)
@@ -448,43 +450,15 @@ private struct CollectionPage: View {
     var body: some View {
         let shown = detail ?? item
         Page(id: "collection-\(item.id)") {
-            HStack(alignment: .bottom, spacing: 36) {
-                Artwork(item: shown, size: 270, cornerRadius: 20, glow: 1)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(item.kind == .album ? "Album" : "Playlist")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.55))
-                    Text(shown.title)
-                        .font(.system(size: 44, weight: .heavy))
-                        .tracking(-1)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                    Text(shown.subtitle)
-                        .font(.system(size: 19, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(1)
-                    Text(meta(shown))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
-                    if let note = shown.note {
-                        Text(note.strippingTags)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .lineLimit(3)
-                            .frame(maxWidth: 560, alignment: .leading)
-                    }
-                    HStack(spacing: 10) {
-                        PlayButtons(item: shown, play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
-                        if !item.isLibrary {
-                            GlassIconButton(symbol: added ? "checkmark" : "plus", isOn: added) {
-                                Task { await store.catalog.addToLibrary(item) }
-                                withAnimation(.spring) { added = true }
-                            }
-                            .help("Add to Library")
-                        }
-                        MoreButton(item: item, size: 40, glass: true)
-                    }
-                    .padding(.top, 12)
+            // The cover sits above the title when the page is too narrow for it alongside.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .bottom, spacing: 36) {
+                    Artwork(item: shown, size: 270, cornerRadius: 20, glow: 1)
+                    details(shown)
+                }
+                VStack(alignment: .leading, spacing: 24) {
+                    Artwork(item: shown, size: 200, cornerRadius: 18, glow: 1)
+                    details(shown)
                 }
             }
             .padding(.horizontal, Layout.gutter)
@@ -515,6 +489,50 @@ private struct CollectionPage: View {
         }
     }
 
+    private func details(_ shown: MediaItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(item.kind == .album ? "Album" : "Playlist")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.55))
+            Text(shown.title)
+                .font(.system(size: 44, weight: .heavy))
+                .tracking(-1)
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
+                .yieldsWidth()
+            Text(shown.subtitle)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.8))
+                .lineLimit(1)
+                .yieldsWidth()
+            Text(meta(shown))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+                .yieldsWidth()
+            if let note = shown.note {
+                Text(note.strippingTags)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(3)
+                    .frame(maxWidth: 560, alignment: .leading)
+                    .yieldsWidth()
+            }
+            HStack(spacing: 10) {
+                PlayButtons(item: shown, play: { store.play(item) }, shuffle: { store.play(item, shuffle: true) })
+                if !item.isLibrary {
+                    GlassIconButton(symbol: added ? "checkmark" : "plus", isOn: added) {
+                        Task { await store.catalog.addToLibrary(item) }
+                        withAnimation(.spring) { added = true }
+                    }
+                    .help("Add to Library")
+                }
+                MoreButton(item: item, size: 40, glass: true)
+            }
+            .padding(.top, 12)
+        }
+    }
+
     private func meta(_ shown: MediaItem) -> String {
         var parts: [String] = []
         if let year = shown.releaseDate?.prefix(4), !year.isEmpty { parts.append(String(year)) }
@@ -536,20 +554,15 @@ private struct ArtistPage: View {
     var body: some View {
         let artist = page?.artist ?? item
         Page(id: "artist-\(item.id)") {
-            HStack(alignment: .center, spacing: 32) {
-                Artwork(item: artist, size: 210, isCircle: true, glow: 1)
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Artist")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.55))
-                    Text(artist.title)
-                        .font(.system(size: 56, weight: .heavy))
-                        .tracking(-1.5)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.5)
-                    if let songs = page?.shelves.first(where: { $0.isSongs })?.items {
-                        PlayButtons(item: artist, play: { store.play(songs, at: 0, in: nil) }, shuffle: { store.play(songs.shuffled(), at: 0, in: nil) })
-                    }
+            // The portrait sits above the name when the page is too narrow for it alongside.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 32) {
+                    Artwork(item: artist, size: 210, isCircle: true, glow: 1)
+                    details(artist)
+                }
+                VStack(alignment: .leading, spacing: 20) {
+                    Artwork(item: artist, size: 160, isCircle: true, glow: 1)
+                    details(artist)
                 }
             }
             .padding(.horizontal, Layout.gutter)
@@ -565,6 +578,23 @@ private struct ArtistPage: View {
                 withAnimation(.easeOut(duration: 0.3)) { page = partial }
             }
             withAnimation(.easeOut(duration: 0.3)) { page = loaded }
+        }
+    }
+
+    private func details(_ artist: MediaItem) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Artist")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.55))
+            Text(artist.title)
+                .font(.system(size: 56, weight: .heavy))
+                .tracking(-1.5)
+                .lineLimit(2)
+                .minimumScaleFactor(0.5)
+                .yieldsWidth()
+            if let songs = page?.shelves.first(where: { $0.isSongs })?.items {
+                PlayButtons(item: artist, play: { store.play(songs, at: 0, in: nil) }, shuffle: { store.play(songs.shuffled(), at: 0, in: nil) })
+            }
         }
     }
 }
@@ -661,6 +691,8 @@ private struct PlayerDock: View {
                 row(trailing: fullTrailing)
                 row(trailing: compactTrailing)
                 row(trailing: OutputPicker())
+                // Last resort: the song shrinks to its cover.
+                row(trailing: OutputPicker(), songMinimum: 50)
             }
             .padding(.horizontal, 14)
             .frame(height: 70)
@@ -727,10 +759,11 @@ private struct PlayerDock: View {
         }
     }
 
-    private func row(trailing: some View) -> some View {
+    private func row(trailing: some View, songMinimum: CGFloat = 120) -> some View {
         HStack(spacing: 18) {
             nowPlaying
-                .frame(minWidth: 120, idealWidth: 120, maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: songMinimum, idealWidth: songMinimum, maxWidth: .infinity, alignment: .leading)
+                .clipped()
             transport
             trailing
                 .fixedSize()
