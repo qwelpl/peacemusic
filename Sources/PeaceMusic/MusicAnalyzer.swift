@@ -114,6 +114,12 @@ final class MusicDetector {
     private(set) var isSilent = true
     private(set) var loudest: Float = 0
 
+    // How loud the music actually is, over the last moment, unlike the levels below, which
+    // only say how punchy it is next to the last half second.
+    private(set) var loudness: Float = 0
+    // How much of the sound is treble, which rises as a track fills out.
+    private(set) var brightness: Float = 0
+
     var bassLevel: Float { kick.level }
     var midLevel: Float { mid.level }
     var highLevel: Float { high.level }
@@ -176,6 +182,8 @@ final class MusicDetector {
         fullSum = 0
         hopFill = 0
         isSilent = full <= Self.silence
+        loudness += (full - loudness) * Float(hopDuration / 0.4)
+        if !isSilent { brightness += (highValue / full - brightness) * Float(hopDuration / 1.0) }
 
         let isWarmingUp = warmupHops > 0
         if isWarmingUp { warmupHops -= 1 }
@@ -205,6 +213,10 @@ final class MusicAnalyzer: @unchecked Sendable {
         var onsets: [Onset] = []
         var spectrum = [Float](repeating: 0, count: SpectrumAnalyzer.bandCount)
         var hasSignal = false
+        var loudness = 0.0
+        var brightness = 0.0
+        // Bass hits a second, over the last two seconds.
+        var bassRate = 0.0
     }
 
     private struct Shared {
@@ -214,6 +226,10 @@ final class MusicAnalyzer: @unchecked Sendable {
         var onsets: [Onset] = []
         var spectrum = [Float](repeating: 0, count: SpectrumAnalyzer.bandCount)
         var lastSignal = Date.distantPast
+        var loudness: Float = 0
+        var brightness: Float = 0
+        // Kept apart from onsets, where busy mids would push bass hits out.
+        var bassHits: [Date] = []
     }
 
     private static let keptOnsets = 10
@@ -239,7 +255,10 @@ final class MusicAnalyzer: @unchecked Sendable {
                 high: Double(state.high),
                 onsets: state.onsets,
                 spectrum: state.spectrum,
-                hasSignal: Date().timeIntervalSince(state.lastSignal) < 1.5
+                hasSignal: Date().timeIntervalSince(state.lastSignal) < 1.5,
+                loudness: Double(state.loudness),
+                brightness: Double(state.brightness),
+                bassRate: Double(state.bassHits.filter { Date().timeIntervalSince($0) < 2 }.count) / 2
             )
         }
     }
@@ -343,7 +362,13 @@ final class MusicAnalyzer: @unchecked Sendable {
             // No allocation on the audio thread.
             for band in state.spectrum.indices { state.spectrum[band] = detector.spectrum.bands[band] }
             if !detector.isSilent { state.lastSignal = now }
-            if bassHit { state.onsets.append(Onset(date: now, isBass: true)) }
+            state.loudness = detector.loudness
+            state.brightness = detector.brightness
+            if bassHit {
+                state.onsets.append(Onset(date: now, isBass: true))
+                state.bassHits.append(now)
+            }
+            while let first = state.bassHits.first, now.timeIntervalSince(first) > 2.5 { state.bassHits.removeFirst() }
             if midHit { state.onsets.append(Onset(date: now, isBass: false)) }
             if state.onsets.count > Self.keptOnsets {
                 state.onsets.removeFirst(state.onsets.count - Self.keptOnsets)

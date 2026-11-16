@@ -28,6 +28,7 @@ struct SurgeView: View {
                             size: size,
                             pulse: pulse,
                             high: high,
+                            audio: audio,
                             trackID: store.track?.id,
                             date: context.date,
                             colors: store.accentColors,
@@ -95,6 +96,7 @@ private final class SurgeMotion {
         size: CGSize,
         pulse: OrbitPulse,
         high: Double,
+        audio: MusicAnalyzer.Reading,
         trackID: String?,
         date: Date,
         colors: [Color],
@@ -128,7 +130,7 @@ private final class SurgeMotion {
             hypeHistory = []
             recentLevels = []
         }
-        let level = hypeLevel(pulse: pulse, high: high, step: step)
+        let level = hypeLevel(pulse: pulse, high: high, audio: audio, step: step)
 
         // A drop: from calm to the song's peak within a few seconds.
         sinceDrop += step
@@ -241,10 +243,18 @@ private final class SurgeMotion {
 
     // Where this moment's hype ranks among everything heard so far in the song, from 0 to 1.
     // Early on, before there's much to compare with, it leans on the hype itself.
-    private func hypeLevel(pulse: OrbitPulse, high: Double, step: Double) -> Double {
-        let loudness = pulse.bass * 0.45 + pulse.mid * 0.35 + high * 0.2
-        let beatsPerSecond = Double(pulse.hits.filter { $0 < 2 }.count) / 2
-        let raw = loudness * 0.65 + min(beatsPerSecond / 3, 1) * 0.35
+    // Hype is mostly how loud the music really is, then how many bass hits land a second,
+    // then how bright it sounds. Without the audio, it's guessed from the lyric timing.
+    private func hypeLevel(pulse: OrbitPulse, high: Double, audio: MusicAnalyzer.Reading, step: Double) -> Double {
+        let raw: Double
+        if audio.hasSignal {
+            let decibels = 20 * log10(max(audio.loudness, 0.00001))
+            let loudness = min(max((decibels + 45) / 40, 0), 1)
+            raw = loudness * 0.6 + min(audio.bassRate / 3, 1) * 0.25 + min(audio.brightness * 3, 1) * 0.15
+        } else {
+            let beatsPerSecond = Double(pulse.hits.filter { $0 < 2 }.count) / 2
+            raw = (pulse.bass * 0.45 + pulse.mid * 0.35 + high * 0.2) * 0.65 + min(beatsPerSecond / 3, 1) * 0.35
+        }
         hype += (raw - hype) * min(step / 1.2, 1)
 
         sinceSample += step
@@ -261,6 +271,13 @@ private final class SurgeMotion {
         if sinceSample == 0 {
             recentLevels.append(level)
             if recentLevels.count > 20 { recentLevels.removeFirst() }
+            if hypeHistory.count % 5 == 0 {
+                SurgeLog.write(String(
+                    format: "%@ loud %.1fdB hits %.1f/s bright %.2f hype %.3f rank %.2f level %.2f speed %.2f drop %.2f",
+                    track ?? "-", 20 * log10(max(audio.loudness, 0.00001)), audio.bassRate, audio.brightness,
+                    hype, rank, level, speed, drop
+                ))
+            }
         }
         return level
     }
@@ -301,6 +318,23 @@ private final class SurgeMotion {
             if point == 0 { path.move(to: location) } else { path.addLine(to: location) }
         }
         return path
+    }
+}
+
+// What Surge hears each second, in ~/Library/Logs/Peace/surge.log, to tune the hype by.
+private enum SurgeLog {
+    private static let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Peace/surge.log")
+    private static let formatter = ISO8601DateFormatter()
+
+    static func write(_ line: String) {
+        let text = formatter.string(from: Date()) + " " + line + "\n"
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(Data(text.utf8))
+            try? handle.close()
+        } else {
+            try? Data(text.utf8).write(to: url)
+        }
     }
 }
 
