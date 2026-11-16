@@ -666,6 +666,9 @@ private struct PlayerDock: View {
         // Wide enough that the full set of buttons fits beside the song once there's room.
         .frame(maxWidth: 1220)
         .songGlass(in: .rect(cornerRadius: 26, style: .continuous))
+        // Clicks on the dock's empty space stop here instead of playing the song beneath.
+        .contentShape(.rect(cornerRadius: 26, style: .continuous))
+        .onTapGesture {}
         .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
         .padding(.horizontal, 24)
         .onHover { hovering in withAnimation(.easeOut(duration: 0.2)) { isHovered = hovering } }
