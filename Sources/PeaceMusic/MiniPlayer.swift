@@ -389,6 +389,10 @@ struct MiniPlayerCard: View {
         .environment(\.miniExpanded, expanded)
         .frame(width: style.size(expanded: expanded).width, height: style.size(expanded: expanded).height)
         .clipShape(shape)
+        .contentShape(shape)
+        // Window background dragging misses clicks that land on SwiftUI content.
+        .gesture(WindowDragGesture())
+        .allowsWindowActivationEvents(true)
         .overlay(shape.strokeBorder(.white.opacity(theme == .glass ? 0.18 : 0.75), lineWidth: 1))
         .shadow(color: .black.opacity(0.4), radius: 12, y: 5)
     }
