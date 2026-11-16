@@ -57,7 +57,7 @@ struct ConstellationView: View {
             let next = index + 1 < lines.count ? lines[index + 1].time : line.time + 6
             let japanese = line.text.contains(where: Self.isKana)
             let words = (line.words ?? Self.spread(line, until: next, japanese: japanese))
-                .flatMap { Self.perCharacter($0, japanese: japanese) }
+                .flatMap { Self.perWord($0, japanese: japanese) }
                 .map(Self.sung)
             // Fade soon after the last word, so instrumental gaps go quiet.
             let end = min(next, (words.last?.end ?? line.time) + Self.holdAfterLine)
@@ -74,52 +74,123 @@ struct ConstellationView: View {
     // squeezed only when the next line comes sooner. Stretching them to fill the gap
     // would keep drawing through instrumental breaks.
     private static func spread(_ line: LyricLine, until end: Double, japanese: Bool) -> [LyricWord] {
-        let pieces = line.text.split(separator: " ").flatMap { beats(in: String($0), japanese: japanese) }
-        let total = max(pieces.reduce(0) { $0 + $1.beats }, 1)
+        let chunks = line.text.split(separator: " ").map { chunk in
+            (text: String(chunk), beats: beats(in: String(chunk), japanese: japanese).reduce(0) { $0 + $1.beats })
+        }
+        let total = max(chunks.reduce(0) { $0 + $1.beats }, 1)
         let pace = min(syllablePace, max(end - line.time, 0.5) * 0.9 / total)
         var time = line.time
-        return pieces.map { piece in
-            let duration = pace * piece.beats
+        return chunks.map { chunk in
+            let duration = pace * chunk.beats
             defer { time += duration }
-            return LyricWord(text: piece.text, time: time, duration: duration * 0.9)
+            return LyricWord(text: chunk.text, time: time, duration: duration * 0.9)
         }
     }
 
-    // Japanese and Chinese have no spaces, so each character draws its own line. Pieces the
-    // source timed keep their times; a piece holding several characters is shared out by
-    // how long each is sung. Latin words stay whole.
-    private static func perCharacter(_ word: LyricWord, japanese: Bool) -> [LyricWord] {
+    // Japanese and Chinese have no spaces, so the system's tokenizer finds the words. Each
+    // word draws one line, and each syllable in it (a mora, in Japanese) is a bump along it.
+    // Times come from the source's own pieces, shared out by how long each character is sung.
+    private static func perWord(_ word: LyricWord, japanese: Bool) -> [LyricWord] {
         guard word.text.contains(where: isCJK) else { return [word] }
-        return (word.parts.isEmpty ? [word] : word.parts).flatMap { part -> [LyricWord] in
-            let pieces = beats(in: part.text, japanese: japanese)
-            let total = pieces.reduce(0) { $0 + $1.beats }
-            guard total > 0 else { return [] }
+        let pieces = timedPieces(word, japanese: japanese)
+        let tokens = tokenRanges(word.text, japanese: japanese)
+        var groups: [[TimedPiece]] = []
+        var lastToken: Int?
+        for piece in pieces {
+            let token = tokens.firstIndex { $0.contains(piece.offset) }
+            if groups.isEmpty || token == nil || token != lastToken {
+                groups.append([piece])
+            } else {
+                groups[groups.count - 1].append(piece)
+            }
+            lastToken = token
+        }
+        return groups.compactMap { group in
+            guard let first = group.first, let last = group.last else { return nil }
+            var starts: [Double] = []
+            for piece in group {
+                let count = Int(piece.beats.rounded())
+                for index in 0..<count {
+                    starts.append(piece.time + piece.duration * Double(index) / Double(count))
+                }
+            }
+            if starts.isEmpty { starts = [first.time] }
+            return LyricWord(
+                text: group.map(\.text).joined(),
+                time: first.time,
+                duration: last.time + last.duration - first.time,
+                parts: starts.map { LyricWord(text: "", time: $0, duration: 0) }
+            )
+        }
+    }
+
+    private struct TimedPiece {
+        let text: String
+        let offset: Int
+        let beats: Double
+        let time: Double
+        let duration: Double
+    }
+
+    // Every piece of the word with when it's sung. Each timed part of the source keeps its
+    // span, split among its pieces by beats.
+    private static func timedPieces(_ word: LyricWord, japanese: Bool) -> [TimedPiece] {
+        let pieces = beats(in: word.text, japanese: japanese)
+        var parts = word.parts.isEmpty ? [word] : word.parts
+        if parts.reduce(0, { $0 + $1.text.count }) != word.text.count { parts = [word] }
+        var result: [TimedPiece] = []
+        var start = 0
+        for part in parts {
+            let range = start..<(start + part.text.count)
+            start = range.upperBound
+            let inside = pieces.filter { range.contains($0.offset) }
+            let total = inside.reduce(0) { $0 + $1.beats }
+            guard total > 0 else { continue }
             var time = part.time
-            return pieces.map { piece in
+            for piece in inside {
                 let duration = part.duration * piece.beats / total
-                defer { time += duration }
-                return LyricWord(text: piece.text, time: time, duration: duration)
+                result.append(TimedPiece(text: piece.text, offset: piece.offset, beats: piece.beats, time: time, duration: duration))
+                time += duration
             }
         }
+        return result
     }
 
-    // The pieces of text that each draw a line, with how many beats each is sung for.
-    private static func beats(in text: String, japanese: Bool) -> [(text: String, beats: Double)] {
-        guard text.contains(where: isCJK) else { return [(text, Double(syllables(in: text)))] }
+    // Character ranges of each word the tokenizer finds.
+    private static func tokenRanges(_ text: String, japanese: Bool) -> [Range<Int>] {
+        let length = (text as NSString).length
+        let locale = Locale(identifier: japanese ? "ja" : "zh") as CFLocale
+        let tokenizer = CFStringTokenizerCreate(nil, text as CFString, CFRange(location: 0, length: length), kCFStringTokenizerUnitWord, locale)
+        var ranges: [Range<Int>] = []
+        while !CFStringTokenizerAdvanceToNextToken(tokenizer).isEmpty {
+            let range = CFStringTokenizerGetCurrentTokenRange(tokenizer)
+            let start = text.utf16.index(text.utf16.startIndex, offsetBy: range.location)
+            let end = text.utf16.index(start, offsetBy: range.length)
+            ranges.append(text.distance(from: text.startIndex, to: start)..<text.distance(from: text.startIndex, to: end))
+        }
+        return ranges
+    }
+
+    // The text's pieces, each CJK character or Latin run, with where each starts and how
+    // many beats it's sung for.
+    private static func beats(in text: String, japanese: Bool) -> [(text: String, offset: Int, beats: Double)] {
+        guard text.contains(where: isCJK) else { return [(text, 0, Double(syllables(in: text)))] }
         let morae = japanese ? Self.morae(in: text) : []
-        var pieces: [(text: String, beats: Double)] = []
+        var pieces: [(text: String, offset: Int, beats: Double)] = []
         var run = ""
+        var runStart = 0
         func endRun() {
-            if !run.isEmpty { pieces.append((run, Double(syllables(in: run)))) }
+            if !run.isEmpty { pieces.append((run, runStart, Double(syllables(in: run)))) }
             run = ""
         }
         for (index, character) in text.enumerated() {
             if isCJK(character) {
                 endRun()
-                pieces.append((String(character), morae.isEmpty ? 1 : morae[index]))
+                pieces.append((String(character), index, morae.isEmpty ? 1 : morae[index]))
             } else if isCJKPunctuation(character) || character.isWhitespace {
                 endRun()
             } else {
+                if run.isEmpty { runStart = index }
                 run.append(character)
             }
         }
@@ -184,7 +255,7 @@ struct ConstellationView: View {
     // Splits a word's sung time across its syllables: the source's own pieces when it has
     // them, otherwise evenly.
     private static func sung(_ word: LyricWord) -> SungWord {
-        if word.parts.count > 1 {
+        if !word.parts.isEmpty {
             return SungWord(syllables: word.parts.map(\.time), end: word.time + max(word.duration, 0.12))
         }
         let count = syllables(in: word.text)
@@ -497,6 +568,14 @@ private final class ConstellationMotion {
             segment.addLine(to: tip)
             graphics.stroke(segment, with: .color(color.opacity(0.18 * fade)), style: StrokeStyle(lineWidth: 6, lineCap: .round))
             graphics.stroke(segment, with: .color(color.opacity(0.9 * fade)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+
+            // A bump where each later syllable began, flaring as it's sung.
+            for (syllable, time) in word.syllables.enumerated().dropFirst() where time <= now {
+                let share = Double(syllable) / Double(word.syllables.count)
+                let point = CGPoint(x: from.x + (target.x - from.x) * share, y: from.y + (target.y - from.y) * share)
+                let flare = exp(-(now - time) / 0.25)
+                graphics.fill(dot(point, 2.2 + flare * 4, isMono), with: .color(color.opacity((0.55 + flare * 0.4) * fade)))
+            }
 
             if progress >= 1 {
                 star(in: &graphics, at: target, age: now - word.end, fade: fade, color: color, isMono: isMono)
