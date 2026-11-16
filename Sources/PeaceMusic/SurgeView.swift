@@ -79,6 +79,10 @@ private final class SurgeMotion {
     private var shake = CGSize.zero
     private var lastHitAge = Double.infinity
     private var speed = 0.6
+    // How loud the song is now, and the range it has moved in lately.
+    private var energy = 0.0
+    private var quiet = 0.2
+    private var loud = 0.6
 
     func draw(
         in graphics: inout GraphicsContext,
@@ -112,9 +116,17 @@ private final class SurgeMotion {
         lastHitAge = hitAge
         kick *= exp(-step / 0.16)
 
-        let energy = pulse.bass * 0.45 + pulse.mid * 0.35 + high * 0.2
-        let target = 0.5 + energy * 3.2
-        speed += (target - speed) * min(step * 4, 1)
+        // Speed follows how loud this moment is next to the song's own recent quiet and loud,
+        // so a verse crawls and a drop rockets whatever the track's overall level.
+        let raw = pulse.bass * 0.45 + pulse.mid * 0.35 + high * 0.2
+        energy += (raw - energy) * min(step * 6, 1)
+        quiet += (energy - quiet) * min(step * (energy < quiet ? 2 : 0.12), 1)
+        loud += (energy - loud) * min(step * (energy > loud ? 2 : 0.1), 1)
+        let level = min(max((energy - quiet) / max(loud - quiet, 0.08), 0), 1)
+        let target = 0.25 + pow(level, 1.8) * 5.5
+        // Surge forward quickly, ease off slowly.
+        speed += (target - speed) * min(step * (target > speed ? 5 : 1.6), 1)
+        let rush = min(max((speed - 0.25) / 5.5, 0), 1)
         spin += step * (0.08 + pulse.mid * 0.5)
 
         for index in rings.indices { rings[index].z -= step * speed }
@@ -133,7 +145,8 @@ private final class SurgeMotion {
             if streaks[index].z < Self.near { streaks[index] = Self.newStreak(z: Self.far) }
         }
 
-        let base = min(size.width, size.height) * 0.2 * (1 + kick * 0.07)
+        // The view widens as it speeds up, which reads as more speed.
+        let base = min(size.width, size.height) * 0.2 * (1.1 - rush * 0.25) * (1 + kick * 0.07)
         let center = CGPoint(
             x: size.width / 2 + shake.width * kick * 14,
             y: size.height / 2 + shake.height * kick * 14
@@ -151,7 +164,7 @@ private final class SurgeMotion {
 
         // Warp streaks, longer the faster it flies.
         var streakPath = Path()
-        let length = 0.05 + speed * 0.06
+        let length = 0.03 + speed * 0.1
         for streak in streaks {
             let radius = base * streak.spread
             let from = Self.project(center, radius / streak.z, streak.angle)
@@ -159,7 +172,7 @@ private final class SurgeMotion {
             streakPath.move(to: from)
             streakPath.addLine(to: to)
         }
-        graphics.stroke(streakPath, with: .color(.white.opacity(0.22 + energy * 0.3)), lineWidth: 1)
+        graphics.stroke(streakPath, with: .color(.white.opacity(0.12 + rush * 0.6)), lineWidth: 1 + rush)
 
         // Far rings first, so near ones draw over them.
         for ring in rings.reversed() {
