@@ -33,7 +33,7 @@ enum FrameRate {
     static let key = "frameRate"
     static let savesBatteryKey = "frameRateSavesBattery"
     static let choices = [15, 30, 60, 120]
-    static let standard = 30
+    static let standard = 60
 
     // On battery the rate halves, but never below the lowest choice.
     @MainActor
