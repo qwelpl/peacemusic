@@ -650,14 +650,39 @@ private struct PlayerDock: View {
     @Environment(MiniPlayerController.self) private var miniPlayer
     @State private var dragValue: Double?
     @State private var isHovered = false
+    @State private var rowWidth: CGFloat = 0
+    @State private var transportWidth: CGFloat = 0
+    @State private var fullTrailingWidth: CGFloat = 0
+
+    private static let songMinimumWidth: CGFloat = 170
+    private static let rowSpacing: CGFloat = 18
+
+    // The song and the buttons split the room either side of the transport evenly, which
+    // left the buttons half the spare room however short the song name was. Measure
+    // instead: the full set shows whenever the song still keeps its minimum beside it.
+    private var showsFullTrailing: Bool {
+        fullTrailingWidth > 0
+            && rowWidth - transportWidth - Self.songMinimumWidth - Self.rowSpacing * 2 >= fullTrailingWidth
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 18) {
+            HStack(spacing: Self.rowSpacing) {
                 nowPlaying
-                    .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: Self.songMinimumWidth, maxWidth: .infinity, alignment: .leading)
                 transport
-                trailing.frame(maxWidth: .infinity, alignment: .trailing)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { transportWidth = $0 }
+                trailing
+                    .frame(minWidth: showsFullTrailing ? fullTrailingWidth : 0, maxWidth: .infinity, alignment: .trailing)
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
+            .background {
+                fullTrailing
+                    .fixedSize()
+                    .hidden()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullTrailingWidth = $0 }
             }
             .padding(.horizontal, 14)
             .frame(height: 70)
@@ -725,9 +750,17 @@ private struct PlayerDock: View {
     }
 
     // Drops the less used buttons when the dock gets narrow, so the song name keeps its room.
+    @ViewBuilder
     private var trailing: some View {
-        ViewThatFits(in: .horizontal) {
+        if showsFullTrailing {
             fullTrailing
+        } else {
+            compactTrailing
+        }
+    }
+
+    private var compactTrailing: some View {
+        ViewThatFits(in: .horizontal) {
             HStack(spacing: 6) {
                 dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
                     .help("Love")
