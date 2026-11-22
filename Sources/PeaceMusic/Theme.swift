@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum UITheme: String {
@@ -35,4 +36,30 @@ extension View {
                 .overlay(Rectangle().strokeBorder(.white.opacity(0.75), lineWidth: 1))
         }
     }
+}
+
+// The library window's look. Now Playing and the mini player stay dark either way.
+enum AppLook: String {
+    case dark, light
+
+    static let key = "appLook"
+
+    var scheme: ColorScheme { self == .light ? .light : .dark }
+}
+
+extension Color {
+    // Text and lines: white in the dark look, near-black in the light one.
+    fileprivate static let inkColor = Color(nsColor: NSColor(name: "PeaceInk") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua ? NSColor(white: 0.1, alpha: 1) : .white
+    })
+
+    // The opposite of ink, for text that sits on it.
+    fileprivate static let paperColor = Color(nsColor: NSColor(name: "PeacePaper") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua ? .white : .black
+    })
+}
+
+extension ShapeStyle where Self == Color {
+    static var ink: Color { Color.inkColor }
+    static var paper: Color { Color.paperColor }
 }

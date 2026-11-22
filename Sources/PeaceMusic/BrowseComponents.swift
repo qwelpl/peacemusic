@@ -9,17 +9,20 @@ extension EnvironmentValues {
 
 // The app's colors, taken from the cover of the song that's playing.
 struct SongTheme: Equatable {
-    var accent: Color = .white
+    var accent: Color = .ink
     // Text and icons that sit on the accent.
-    var onAccent: Color = .black
+    var onAccent: Color = .paper
     // A faint wash of the song's color through every glass panel.
     var glass: Color = .clear
 
     init() {}
 
-    init(accents: [Color]) {
+    // On the light look the song's color is deepened so it still reads against the pale page.
+    init(accents: [Color], light: Bool = false) {
         guard let first = accents.first, let color = NSColor(first).usingColorSpace(.sRGB) else { return }
-        accent = Color(hue: color.hueComponent, saturation: min(color.saturationComponent, 0.7), brightness: 0.98)
+        accent = light
+            ? Color(hue: color.hueComponent, saturation: color.saturationComponent < 0.08 ? color.saturationComponent : min(max(color.saturationComponent, 0.45), 0.85), brightness: 0.62)
+            : Color(hue: color.hueComponent, saturation: min(color.saturationComponent, 0.7), brightness: 0.98)
         let resolved = NSColor(accent).usingColorSpace(.sRGB) ?? .white
         let luminance = 0.2126 * resolved.redComponent + 0.7152 * resolved.greenComponent + 0.0722 * resolved.blueComponent
         onAccent = luminance > 0.6 ? .black : .white
@@ -114,19 +117,19 @@ struct Artwork: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [.white.opacity(0.1), .white.opacity(0.04)], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [.ink.opacity(0.1), .ink.opacity(0.04)], startPoint: .top, endPoint: .bottom)
             if let image {
                 Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fill)
                     .transition(.opacity)
             } else {
                 Image(systemName: placeholder)
                     .font(.system(size: size * 0.28, weight: .light))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(.ink.opacity(0.3))
             }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .overlay(shape.stroke(.white.opacity(0.1), lineWidth: 0.5))
+        .overlay(shape.stroke(.ink.opacity(0.1), lineWidth: 0.5))
         // Shadow only on hover: dozens of resting shadows slowed every resize and scroll.
         .shadow(
             color: glow > 0 ? (color ?? .black).opacity(glow * 0.55) : .clear,
@@ -251,7 +254,7 @@ struct ItemTile: View {
                         Button { store.play(item) } label: {
                             Image(systemName: "play.fill")
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.ink)
                                 .frame(width: 40, height: 40)
                                 .songGlass(in: .circle, interactive: true)
                                 .contentShape(.circle)
@@ -271,7 +274,7 @@ struct ItemTile: View {
                 if !item.subtitle.isEmpty {
                     Text(item.subtitle)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.ink.opacity(0.55))
                         .lineLimit(1)
                 }
             }
@@ -292,7 +295,7 @@ struct ExplicitBadge: View {
         Text("E")
             .font(.system(size: 8, weight: .heavy))
             .frame(width: 12, height: 12)
-            .background(.white.opacity(0.25), in: .rect(cornerRadius: 3))
+            .background(.ink.opacity(0.25), in: .rect(cornerRadius: 3))
     }
 }
 
@@ -322,8 +325,10 @@ struct HeroCard: View {
             .padding(.horizontal, 44)
         }
         .frame(height: 330)
+        // White type over the darkened cover, whatever the look.
+        .environment(\.colorScheme, .dark)
         .clipShape(.rect(cornerRadius: 28, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 0.5))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(.ink.opacity(0.12), lineWidth: 0.5))
         .contentShape(.rect)
         .clickable()
         .onTapGesture { openItem(item) }
@@ -335,7 +340,7 @@ struct HeroCard: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(eyebrow)
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(.ink.opacity(0.65))
                     Text(item.title)
                         .font(.system(size: 42, weight: .heavy))
                         .tracking(-0.8)
@@ -344,14 +349,14 @@ struct HeroCard: View {
                     if !item.subtitle.isEmpty {
                         Text(item.subtitle)
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundStyle(.ink.opacity(0.75))
                             .lineLimit(1)
                             .yieldsWidth()
                     }
                     if let note = item.note {
                         Text(note.strippingTags)
                             .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(.ink.opacity(0.6))
                             .lineLimit(2)
                             .frame(maxWidth: 460, alignment: .leading)
                             .yieldsWidth()
@@ -393,16 +398,16 @@ struct SongRow: View {
                     if song.isExplicit { ExplicitBadge() }
                 }
                 .font(.system(size: 13, weight: isCurrent ? .bold : .medium))
-                .foregroundStyle(isCurrent ? theme.accent : .white)
+                .foregroundStyle(isCurrent ? theme.accent : .ink)
                 if showsArtwork {
-                    Text(song.subtitle).font(.system(size: 12)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
+                    Text(song.subtitle).font(.system(size: 12)).foregroundStyle(.ink.opacity(0.5)).lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if showsAlbum {
                 Text(song.album)
                     .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(.ink.opacity(0.45))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -410,14 +415,14 @@ struct SongRow: View {
                 .opacity(isHovered ? 1 : 0)
             Text(Self.time(song.duration))
                 .font(.system(size: 12, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.45))
+                .foregroundStyle(.ink.opacity(0.45))
                 .frame(width: 44, alignment: .trailing)
         }
         .padding(.horizontal, 12)
         .frame(height: showsArtwork ? 56 : 44)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(isCurrent ? 0.1 : isHovered ? 0.06 : 0))
+                .fill(.ink.opacity(isCurrent ? 0.1 : isHovered ? 0.06 : 0))
         }
         .contentShape(.rect)
         .onHover { hovering in withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering } }
@@ -448,7 +453,7 @@ struct SongRow: View {
             } else if !showsArtwork {
                 Text("\(song.trackNumber ?? index + 1)")
                     .font(.system(size: 12, weight: .medium).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(.ink.opacity(0.4))
             }
         }
         .frame(width: showsArtwork ? 40 : 24)
@@ -551,7 +556,7 @@ struct PageTitle: View {
             if let subtitle {
                 Text(subtitle)
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(.ink.opacity(0.5))
             }
             Text(title)
                 .font(.system(size: 46, weight: .heavy))
@@ -599,7 +604,7 @@ struct PlayButtons: View {
             Button(action: shuffle) {
                 Label("Shuffle", systemImage: "shuffle")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.ink)
                     .frame(width: 110, height: 40)
                     .glassEffect(.regular.tint(fill.opacity(0.18)).interactive(), in: .capsule)
                     .contentShape(.capsule)
@@ -626,7 +631,7 @@ struct GlassIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.36, weight: .bold))
-                .foregroundStyle(isOn ? theme.onAccent : .white)
+                .foregroundStyle(isOn ? theme.onAccent : .ink)
                 .frame(width: size, height: size)
                 .background(isOn ? theme.accent : .clear, in: .circle)
                 .songGlass(in: .circle, interactive: true)
@@ -662,7 +667,7 @@ struct Loading<Value, Content: View>: View {
                     }
                     .buttonStyle(.pointer)
                 }
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.ink.opacity(0.7))
                 .frame(maxWidth: .infinity, minHeight: 320)
             } else {
                 ProgressView().controlSize(.regular).frame(maxWidth: .infinity, minHeight: 320)

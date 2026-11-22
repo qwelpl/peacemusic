@@ -176,7 +176,7 @@ struct OutputPicker: View {
         } label: {
             Image(systemName: currentSymbol)
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(.ink.opacity(0.95))
                 .frame(width: 38, height: 38)
                 .contentShape(.rect)
                 .contentTransition(.symbolEffect(.replace))
@@ -215,13 +215,13 @@ struct OutputPicker: View {
         VStack(alignment: .leading, spacing: 1) {
             Text("Play Sound On")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(.ink.opacity(0.55))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
             if outputs.isEmpty {
                 Text("No outputs found")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(.ink.opacity(0.6))
                     .padding(10)
             }
             ForEach(outputs) { output in
@@ -262,7 +262,7 @@ private struct OutputRow: View {
                     Image(systemName: "checkmark").font(.system(size: 11, weight: .bold))
                 }
             }
-            .foregroundStyle(isHovered ? theme.onAccent : .white)
+            .foregroundStyle(isHovered ? theme.onAccent : .ink)
             .padding(.horizontal, 10)
             .frame(height: 34)
             .background(isHovered ? theme.accent.opacity(0.9) : .clear, in: .rect(cornerRadius: 9, style: .continuous))

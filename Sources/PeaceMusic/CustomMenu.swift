@@ -101,7 +101,7 @@ struct MoreButton: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: glass ? 14 : 13, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.ink)
                 .frame(width: size, height: size)
                 .background {
                     if glass { Color.clear.songGlass(in: .circle, interactive: true) }
@@ -170,7 +170,7 @@ struct MenuLayer: View {
     private func panel(_ item: MediaItem) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             header(item)
-            Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5).padding(.horizontal, 10)
+            Rectangle().fill(.ink.opacity(0.08)).frame(height: 0.5).padding(.horizontal, 10)
             VStack(alignment: .leading, spacing: 1) {
                 switch page {
                 case .main: mainRows(item)
@@ -192,7 +192,7 @@ struct MenuLayer: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title).font(.system(size: 13, weight: .bold)).lineLimit(1)
                 if !item.subtitle.isEmpty {
-                    Text(item.subtitle).font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                    Text(item.subtitle).font(.system(size: 11, weight: .medium)).foregroundStyle(.ink.opacity(0.55)).lineLimit(1)
                 }
             }
         }
@@ -282,7 +282,7 @@ struct MenuLayer: View {
                 .onSubmit { create(with: item) }
                 .padding(.horizontal, 10)
                 .frame(height: 32)
-                .background(.white.opacity(0.08), in: .rect(cornerRadius: 9, style: .continuous))
+                .background(.ink.opacity(0.08), in: .rect(cornerRadius: 9, style: .continuous))
             Button { create(with: item) } label: {
                 Text("Create")
                     .font(.system(size: 12, weight: .bold))
@@ -333,7 +333,7 @@ private struct MenuRow: View {
                     Image(systemName: symbol)
                         .font(.system(size: 12, weight: .semibold))
                         .frame(width: 20)
-                        .foregroundStyle(isHovered ? theme.onAccent : .white.opacity(0.75))
+                        .foregroundStyle(isHovered ? theme.onAccent : .ink.opacity(0.75))
                 }
                 Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 Spacer(minLength: 0)
@@ -341,7 +341,7 @@ private struct MenuRow: View {
                     Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).opacity(0.5)
                 }
             }
-            .foregroundStyle(isHovered ? theme.onAccent : .white)
+            .foregroundStyle(isHovered ? theme.onAccent : .ink)
             .padding(.horizontal, 10)
             .frame(height: 32)
             .background(isHovered ? theme.accent.opacity(0.9) : .clear, in: .rect(cornerRadius: 9, style: .continuous))
@@ -354,6 +354,6 @@ private struct MenuRow: View {
 
 private struct MenuDivider: View {
     var body: some View {
-        Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5).padding(.horizontal, 8).padding(.vertical, 4)
+        Rectangle().fill(.ink.opacity(0.08)).frame(height: 0.5).padding(.horizontal, 8).padding(.vertical, 4)
     }
 }

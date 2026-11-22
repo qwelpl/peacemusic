@@ -27,6 +27,7 @@ struct SettingsPage: View {
     @AppStorage(ScreenAwake.key) private var keepsScreenAwake = false
     @AppStorage("showsSongPanel") private var showsSongPanel = true
     @AppStorage("showsLyricsCard") private var showsLyricsCard = true
+    @AppStorage(AppLook.key) private var lookRaw = AppLook.dark.rawValue
 
     @State private var topic = PreviewTopic.nowPlaying
     @State private var titleHeight: CGFloat = 0
@@ -60,6 +61,7 @@ struct SettingsPage: View {
                 .frame(width: showsPreview ? settingsWidth : proxy.size.width, alignment: .leading)
                 if showsPreview {
                     SettingsPreview(topic: $topic)
+                        .environment(\.colorScheme, .dark)
                         .frame(width: previewWidth)
                         // Lines up with the first card, below the title.
                         .padding(.top, Layout.topInset + titleHeight + 26)
@@ -132,6 +134,9 @@ struct SettingsPage: View {
 
     private var window: some View {
         SettingsCard(title: "Window", symbol: "macwindow") {
+            SettingsRow(title: "Appearance", detail: "The library in dark, or pale gray with dark text. Now Playing stays dark.") {
+                Segmented(options: [(AppLook.dark.rawValue, "Dark"), (AppLook.light.rawValue, "Light")], selection: $lookRaw)
+            }
             SettingsRow(title: "Song panel", detail: "Lyrics, details and Up Next on the right while a song plays.") {
                 Switch(isOn: $showsSongPanel)
             }
@@ -235,14 +240,14 @@ private struct SettingsRow<Control: View>: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.06)).frame(height: 0.5).padding(.horizontal, 20) }
+        .overlay(alignment: .top) { Rectangle().fill(.ink.opacity(0.06)).frame(height: 0.5).padding(.horizontal, 20) }
     }
 
     private var labels: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.system(size: 13, weight: .semibold))
             if let detail {
-                Text(detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.5)).fixedSize(horizontal: false, vertical: true)
+                Text(detail).font(.system(size: 12)).foregroundStyle(.ink.opacity(0.5)).fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: 300, alignment: .leading)
@@ -259,7 +264,7 @@ private struct Switch: View {
         Button { withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { isOn.toggle() } } label: {
             ZStack(alignment: isOn ? .trailing : .leading) {
                 // White on white can't show "on", so with nothing playing it's amber.
-                Capsule().fill(isOn ? (theme == SongTheme() ? PlayButtons.defaultColor : theme.accent) : Color.white.opacity(0.14))
+                Capsule().fill(isOn ? (theme == SongTheme() ? PlayButtons.defaultColor : theme.accent) : Color.ink.opacity(0.14))
                 Circle()
                     .fill(.white)
                     .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
@@ -285,7 +290,7 @@ private struct Segmented: View {
                 Button { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { selection = value } } label: {
                     Text(title)
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(selection == value ? theme.onAccent : .white.opacity(0.75))
+                        .foregroundStyle(selection == value ? theme.onAccent : .ink.opacity(0.75))
                         .padding(.horizontal, 14)
                         .frame(height: 30)
                         .background {
@@ -299,7 +304,7 @@ private struct Segmented: View {
             }
         }
         .padding(3)
-        .background(.white.opacity(0.07), in: .capsule)
+        .background(.ink.opacity(0.07), in: .capsule)
     }
 }
 
@@ -320,10 +325,10 @@ private struct ChoiceGrid: View {
                         if let symbol { Image(systemName: symbol).font(.system(size: 12, weight: .semibold)) }
                         Text(title).font(font(value) ?? .system(size: 12, weight: .semibold)).lineLimit(1)
                     }
-                    .foregroundStyle(isSelected ? theme.onAccent : .white.opacity(0.85))
+                    .foregroundStyle(isSelected ? theme.onAccent : .ink.opacity(0.85))
                     .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity, minHeight: 34)
-                    .background(isSelected ? theme.accent : Color.white.opacity(0.07), in: .rect(cornerRadius: 11, style: .continuous))
+                    .background(isSelected ? theme.accent : Color.ink.opacity(0.07), in: .rect(cornerRadius: 11, style: .continuous))
                     .contentShape(.rect)
                 }
                 .buttonStyle(.pointer)
@@ -355,9 +360,9 @@ private struct Swatches: View {
                 let isSelected = hex.uppercased() == value
                 Button { hex = value } label: {
                     Circle()
-                        .fill(Color(hex: value) ?? .white)
+                        .fill(Color(hex: value) ?? .ink)
                         .frame(width: 22, height: 22)
-                        .overlay(Circle().stroke(.white, lineWidth: isSelected ? 2 : 0).padding(-4))
+                        .overlay(Circle().stroke(.ink, lineWidth: isSelected ? 2 : 0).padding(-4))
                         .frame(width: 30, height: 30)
                         .contentShape(.circle)
                 }

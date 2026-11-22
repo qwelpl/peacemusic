@@ -41,11 +41,11 @@ struct Scrubber: View {
         GeometryReader { geometry in
             let shape = RoundedRectangle(cornerRadius: theme.cornerRadius(height / 2))
             ZStack(alignment: .leading) {
-                shape.fill(.white.opacity(0.24))
+                shape.fill(.ink.opacity(0.24))
                 shape
                     .fill(songTheme.accent)
                     .frame(width: max(height, geometry.size.width * min(max(value, 0), 1)))
-                    .shadow(color: .white.opacity(isDragging && theme == .glass ? 0.6 : 0), radius: 8)
+                    .shadow(color: .ink.opacity(isDragging && theme == .glass ? 0.6 : 0), radius: 8)
             }
             .frame(height: height)
             .frame(maxHeight: .infinity)
@@ -97,7 +97,7 @@ struct ProgressRow: View {
                 }
                 .font(theme.font(12, .semibold))
                 .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(.ink.opacity(0.65))
             }
         }
     }
@@ -161,7 +161,7 @@ struct VolumeRow: View {
             Image(systemName: "speaker.wave.3.fill")
         }
         .font(.system(size: 11))
-        .foregroundStyle(.white.opacity(0.6))
+        .foregroundStyle(.ink.opacity(0.6))
     }
 }
 
@@ -196,8 +196,8 @@ struct PlayerButton: View {
             Image(systemName: symbol)
                 .font(.system(size: iconSize, weight: .semibold))
                 .contentTransition(.symbolEffect(.replace))
-                .foregroundStyle(.white.opacity(style == .quiet && !isOn ? 0.5 : 1))
-                .shadow(color: .white.opacity(style == .quiet && isOn ? 0.7 : 0), radius: 7)
+                .foregroundStyle(.ink.opacity(style == .quiet && !isOn ? 0.5 : 1))
+                .shadow(color: .ink.opacity(style == .quiet && isOn ? 0.7 : 0), radius: 7)
                 .frame(width: style == .quiet ? 34 : diameter, height: style == .quiet ? 34 : diameter)
                 .contentShape(.circle)
         }
@@ -205,7 +205,7 @@ struct PlayerButton: View {
 
         switch style {
         case .regular:
-            button.glassEffect(isOn ? .clear.tint(.white.opacity(0.28)).interactive() : .clear.interactive(), in: .circle)
+            button.glassEffect(isOn ? .clear.tint(.ink.opacity(0.28)).interactive() : .clear.interactive(), in: .circle)
         case .quiet:
             button
         }
@@ -223,7 +223,7 @@ struct PlayerButton: View {
                 .padding(.vertical, 8)
                 .frame(minWidth: monoWidth)
                 .background(isFilled ? Color.white : Color.black.opacity(0.35))
-                .overlay(Rectangle().strokeBorder(.white.opacity(0.75), lineWidth: 1))
+                .overlay(Rectangle().strokeBorder(.ink.opacity(0.75), lineWidth: 1))
                 .contentShape(.rect)
         }
         .buttonStyle(.pointer)
