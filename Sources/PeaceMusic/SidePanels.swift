@@ -39,7 +39,7 @@ struct LeftSidebar: View {
                         row("Artists", "music.mic", .library(.artists))
                         row("Songs", "music.note", .library(.songs))
                     }
-                    group("Playlists", action: newPlaylist) {
+                    group("Playlists", action: store.newPlaylist) {
                         ForEach(store.libraryPlaylists) { playlist in
                             playlistRow(playlist)
                         }
@@ -165,15 +165,6 @@ struct LeftSidebar: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5) }
-        }
-    }
-
-    private func newPlaylist() {
-        PlaylistNamer.ask { name in
-            Task {
-                await store.catalog.createPlaylist(named: name)
-                await store.refreshLibraryPlaylists()
-            }
         }
     }
 }

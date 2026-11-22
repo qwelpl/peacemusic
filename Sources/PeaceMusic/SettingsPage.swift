@@ -27,6 +27,7 @@ struct SettingsPage: View {
     @AppStorage(ScreenAwake.key) private var keepsScreenAwake = false
     @AppStorage("showsSongPanel") private var showsSongPanel = true
     @AppStorage("showsLyricsCard") private var showsLyricsCard = true
+    @AppStorage("layoutStyle") private var layoutRaw = LayoutStyle.peace.rawValue
 
     @State private var topic = PreviewTopic.nowPlaying
     @State private var titleHeight: CGFloat = 0
@@ -132,6 +133,9 @@ struct SettingsPage: View {
 
     private var window: some View {
         SettingsCard(title: "Window", symbol: "macwindow") {
+            SettingsRow(title: "Layout", detail: "Glass over the song's colors, or flat dark panels with a song table.") {
+                Segmented(options: [(LayoutStyle.peace.rawValue, "Peace"), (LayoutStyle.studio.rawValue, "Studio")], selection: $layoutRaw)
+            }
             SettingsRow(title: "Song panel", detail: "Lyrics, details and Up Next on the right while a song plays.") {
                 Switch(isOn: $showsSongPanel)
             }

@@ -19,8 +19,15 @@ enum UITheme: String {
     }
 }
 
+// How the library window is laid out. Peace floats glass over the song's colors; Studio is
+// flat dark panels with a table for songs. Now Playing looks the same in both.
+enum LayoutStyle: String {
+    case peace, studio
+}
+
 extension EnvironmentValues {
     @Entry var uiTheme: UITheme = .glass
+    @Entry var layoutStyle: LayoutStyle = .peace
     @Entry var musicAnalyzer = MusicAnalyzer()
 }
 

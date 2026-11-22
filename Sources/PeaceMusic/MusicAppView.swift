@@ -24,6 +24,8 @@ struct MusicAppView: View {
 
     @State private var destination = Destination.home
     @State private var path: [MediaItem] = []
+    // Pages left by going back, for Studio's forward button.
+    @State private var forwardPath: [MediaItem] = []
     @State private var query = ""
     @State private var showsNowPlaying = false
     // True once Now Playing fully covers the window, so the browser underneath can stop drawing.
@@ -31,13 +33,19 @@ struct MusicAppView: View {
     @AppStorage("showsSongPanel") private var showsSongPanel = true
     // Whether the window is wide enough for the song panel beside the sidebar and the page.
     @State private var songPanelFits = true
+    @AppStorage("layoutStyle") private var layoutRaw = LayoutStyle.peace.rawValue
+    private var layout: LayoutStyle { LayoutStyle(rawValue: layoutRaw) ?? .peace }
 
     @State private var songTheme = SongTheme()
     @State private var menus = MenuPresenter()
 
     var body: some View {
         ZStack {
-            AmbientBackground()
+            if layout == .studio {
+                Studio.background.ignoresSafeArea()
+            } else {
+                AmbientBackground()
+            }
             if store.status == .signedOut {
                 SignInView()
             } else {
@@ -45,6 +53,7 @@ struct MusicAppView: View {
             }
         }
         .environment(\.songTheme, songTheme)
+        .environment(\.layoutStyle, layout)
         .lyricLook()
         .tint(songTheme.accent)
         // Only the colors fade. Animating the whole window on a song change dragged every
@@ -74,10 +83,13 @@ struct MusicAppView: View {
 
     // Padding, sidebar, gaps, panel, and the narrowest the page should get beside them.
     private static let songPanelMinimumWidth: CGFloat = 12 + 236 + 12 + 320 + 12 + 12 + 520
+    private static let studioSongPanelMinimumWidth: CGFloat = 10 + 260 + 10 + 320 + 10 + 10 + 520
 
     private var browser: some View {
         ZStack {
-            if !nowPlayingCovers {
+            if !nowPlayingCovers, layout == .studio {
+                studio
+            } else if !nowPlayingCovers {
             HStack(spacing: 12) {
                 LeftSidebar(destination: $destination, query: $query, select: select)
                     .frame(width: 236)
@@ -107,7 +119,9 @@ struct MusicAppView: View {
         }
         // Sidebar, page and panel never squeeze each other off screen: when the window is too
         // narrow for all three, the panel steps aside until there's room again.
-        .onGeometryChange(for: Bool.self) { $0.size.width >= Self.songPanelMinimumWidth } action: { songPanelFits = $0 }
+        .onGeometryChange(for: Bool.self) { [layout] in
+            $0.size.width >= (layout == .studio ? Self.studioSongPanelMinimumWidth : Self.songPanelMinimumWidth)
+        } action: { songPanelFits = $0 }
         .environment(\.openItem, open)
         .environment(\.menuPresenter, menus)
         .onChange(of: query) { if !query.isEmpty { path = [] } }
@@ -122,6 +136,42 @@ struct MusicAppView: View {
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: showsSongPanel)
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: store.track == nil)
+    }
+
+    // Studio: flat panels. Sidebar and the playing song on the left, a search bar over the
+    // page, and the player along the bottom.
+    private var studio: some View {
+        HStack(spacing: 10) {
+            VStack(spacing: 10) {
+                StudioSidebar(destination: destination, query: query, select: select)
+                StudioNowPlayingCard(openNowPlaying: openNowPlaying)
+            }
+            .frame(width: 260)
+            .layoutPriority(2)
+            VStack(spacing: 10) {
+                StudioTopBar(
+                    query: $query,
+                    canGoBack: !path.isEmpty,
+                    canGoForward: !forwardPath.isEmpty,
+                    back: goBack,
+                    forward: goForward
+                )
+                pages
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(.rect(cornerRadius: Studio.radius, style: .continuous))
+                StudioPlayerBar(showsSongPanel: $showsSongPanel)
+            }
+            .frame(minWidth: 0, maxWidth: .infinity)
+            if showsSongPanel, songPanelFits, store.track != nil {
+                NowPlayingPanel(openNowPlaying: openNowPlaying)
+                    .frame(width: 320)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
+        // The title bar's safe area already clears the window's buttons.
+        .padding(.top, 8)
     }
 
     private var main: some View {
@@ -171,6 +221,7 @@ struct MusicAppView: View {
         if item.kind == .song {
             store.play([item], at: 0, in: nil)
         } else {
+            forwardPath = []
             withAnimation(.spring(response: 0.45, dampingFraction: 0.88)) { path.append(item) }
         }
     }
@@ -186,13 +237,21 @@ struct MusicAppView: View {
     }
 
     private func goBack() {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { _ = path.popLast() }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) {
+            if let left = path.popLast() { forwardPath.append(left) }
+        }
+    }
+
+    private func goForward() {
+        guard let next = forwardPath.popLast() else { return }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { path.append(next) }
     }
 
     private func select(_ next: Destination) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
             destination = next
             path = []
+            forwardPath = []
             query = ""
         }
     }
@@ -227,11 +286,14 @@ private struct Page<Content: View>: View {
     let id: String
     @ViewBuilder let content: Content
 
+    @Environment(\.layoutStyle) private var layoutStyle
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 40) { content }
-                .padding(.top, Layout.topInset)
-                .padding(.bottom, Layout.bottomInset)
+                // Studio has no floating back button or dock over the page to make room for.
+                .padding(.top, layoutStyle == .studio ? 24 : Layout.topInset)
+                .padding(.bottom, layoutStyle == .studio ? 40 : Layout.bottomInset)
         }
         .scrollIndicators(.never)
         .id(id)
@@ -430,11 +492,14 @@ private struct SearchPage: View {
 private struct DetailPage: View {
     let item: MediaItem
 
+    @Environment(\.layoutStyle) private var layoutStyle
+
     var body: some View {
         switch item.kind {
         case .artist: ArtistPage(item: item)
         case .station: StationPage(item: item)
-        default: CollectionPage(item: item)
+        default:
+            if layoutStyle == .studio { StudioCollectionPage(item: item) } else { CollectionPage(item: item) }
         }
     }
 }

@@ -231,6 +231,18 @@ enum PlaylistNamer {
     }
 }
 
+extension PlayerStore {
+    // Asks for a name, makes the playlist, and refreshes the sidebar's list.
+    func newPlaylist() {
+        PlaylistNamer.ask { name in
+            Task {
+                await self.catalog.createPlaylist(named: name)
+                await self.refreshLibraryPlaylists()
+            }
+        }
+    }
+}
+
 // MARK: Tiles
 
 struct ItemTile: View {
@@ -466,20 +478,41 @@ struct SongList: View {
     var collection: MediaItem? = nil
     var showsArtwork = true
     var showsAlbum = true
+    // Hides rows that don't match, without changing where the others play from. Studio only.
+    var filter = ""
 
     @Environment(PlayerStore.self) private var store
+    @Environment(\.layoutStyle) private var layoutStyle
 
     var body: some View {
         let shown = songs.filter { song in
             !store.removedItems.contains(song.id) && !store.removedItems.contains("\(collection?.id ?? "")/\(song.id)")
         }
-        LazyVStack(spacing: 2) {
-            ForEach(Array(shown.enumerated()), id: \.offset) { index, song in
-                SongRow(song: song, index: index, showsArtwork: showsArtwork, showsAlbum: showsAlbum) {
-                    store.play(shown, at: index, in: collection)
+        if layoutStyle == .studio {
+            LazyVStack(spacing: 0) {
+                StudioSongHeader(showsAlbum: showsAlbum)
+                ForEach(Array(shown.enumerated()), id: \.offset) { index, song in
+                    if Self.matches(song, filter) {
+                        StudioSongRow(song: song, index: index, showsArtwork: showsArtwork, showsAlbum: showsAlbum) {
+                            store.play(shown, at: index, in: collection)
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyVStack(spacing: 2) {
+                ForEach(Array(shown.enumerated()), id: \.offset) { index, song in
+                    SongRow(song: song, index: index, showsArtwork: showsArtwork, showsAlbum: showsAlbum) {
+                        store.play(shown, at: index, in: collection)
+                    }
                 }
             }
         }
+    }
+
+    private static func matches(_ song: MediaItem, _ filter: String) -> Bool {
+        filter.isEmpty || song.title.localizedCaseInsensitiveContains(filter)
+            || song.subtitle.localizedCaseInsensitiveContains(filter) || song.album.localizedCaseInsensitiveContains(filter)
     }
 }
 
