@@ -52,7 +52,7 @@ struct LeftSidebar: View {
             row("Settings", "gearshape.fill", .settings)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .overlay(alignment: .top) { Rectangle().fill(.ink.opacity(0.08)).frame(height: 0.5) }
+                .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5) }
             listening
         }
         .songGlass(in: .rect(cornerRadius: 24, style: .continuous))
@@ -63,7 +63,7 @@ struct LeftSidebar: View {
 
     private var searchField: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .bold)).foregroundStyle(.ink.opacity(0.6))
+            Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .bold)).foregroundStyle(.white.opacity(0.6))
             TextField("Search", text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .medium))
@@ -71,7 +71,7 @@ struct LeftSidebar: View {
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.ink.opacity(0.5))
+                        .foregroundStyle(.white.opacity(0.5))
                         .frame(width: 30, height: 30)
                         .contentShape(.rect)
                 }
@@ -80,7 +80,7 @@ struct LeftSidebar: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 34)
-        .background(.ink.opacity(searching ? 0.14 : 0.08), in: .rect(cornerRadius: 11, style: .continuous))
+        .background(.white.opacity(searching ? 0.14 : 0.08), in: .rect(cornerRadius: 11, style: .continuous))
     }
 
     private func group<Content: View>(_ title: String, action: (() -> Void)? = nil, @ViewBuilder content: () -> Content) -> some View {
@@ -88,7 +88,7 @@ struct LeftSidebar: View {
             HStack {
                 Text(title)
                     .font(.system(size: 10, weight: .heavy))
-                    .foregroundStyle(.ink.opacity(0.4))
+                    .foregroundStyle(.white.opacity(0.4))
                 Spacer()
                 if let action {
                     Button(action: action) {
@@ -98,7 +98,7 @@ struct LeftSidebar: View {
                             .contentShape(.rect)
                     }
                         .buttonStyle(.pointer)
-                        .foregroundStyle(.ink.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.55))
                         .help("New Playlist")
                 }
             }
@@ -115,7 +115,7 @@ struct LeftSidebar: View {
                 Image(systemName: symbol)
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 18)
-                    .foregroundStyle(isSelected ? theme.accent : .ink.opacity(0.65))
+                    .foregroundStyle(isSelected ? theme.accent : .white.opacity(0.65))
                 Text(title).font(.system(size: 13, weight: isSelected ? .bold : .medium))
                 Spacer(minLength: 0)
             }
@@ -154,17 +154,17 @@ struct LeftSidebar: View {
                 // Still: a looping symbol redraws the whole window every frame.
                 Image(systemName: store.isPlaying ? "waveform" : "pause.fill")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(store.accentColors.first ?? .ink)
+                    .foregroundStyle(store.accentColors.first ?? .white)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(store.isPlaying ? "Listening" : "Paused")
                         .font(.system(size: 9, weight: .heavy))
-                        .foregroundStyle(.ink.opacity(0.45))
+                        .foregroundStyle(.white.opacity(0.45))
                     Text(track.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(alignment: .top) { Rectangle().fill(.ink.opacity(0.08)).frame(height: 0.5) }
+            .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5) }
         }
     }
 
@@ -183,8 +183,8 @@ private struct SidebarButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(.ink)
-            .background(.ink.opacity(isHovered ? 0.06 : 0), in: .rect(cornerRadius: 10, style: .continuous))
+            .foregroundStyle(.white)
+            .background(.white.opacity(isHovered ? 0.06 : 0), in: .rect(cornerRadius: 10, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .onHover { isHovered = $0 }
             .pointerStyle(.link)
@@ -248,7 +248,7 @@ struct NowPlayingPanel: View {
         VStack(alignment: .leading, spacing: 14) {
             Button(action: openNowPlaying) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.ink.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.06))
                     if let artwork = store.artwork {
                         Image(nsImage: artwork).resizable().aspectRatio(contentMode: .fill)
                     }
@@ -272,7 +272,7 @@ struct NowPlayingPanel: View {
 
     private func link(_ text: String, item: MediaItem?, size: CGFloat, weight: Font.Weight, opacity: Double) -> some View {
         Button { if let item { openItem(item) } } label: {
-            Text(text).font(.system(size: size, weight: weight)).foregroundStyle(.ink.opacity(opacity)).lineLimit(1)
+            Text(text).font(.system(size: size, weight: weight)).foregroundStyle(.white.opacity(opacity)).lineLimit(1)
                 .contentShape(.rect)
         }
         .buttonStyle(.pointer)
@@ -306,7 +306,7 @@ struct NowPlayingPanel: View {
             } accessory: {
                 Image(systemName: lyricsExpanded ? "chevron.up" : "chevron.down")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.ink.opacity(0.45))
+                    .foregroundStyle(.white.opacity(0.45))
             }
             .clipped()
             .animation(.spring(response: 0.5, dampingFraction: 0.86), value: lyricsExpanded)
@@ -336,7 +336,7 @@ struct NowPlayingPanel: View {
             } accessory: {
                 Image(systemName: lyricsExpanded ? "chevron.up" : "chevron.down")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.ink.opacity(0.45))
+                    .foregroundStyle(.white.opacity(0.45))
             }
             .contentShape(.rect)
             .clickable()
@@ -356,7 +356,7 @@ struct NowPlayingPanel: View {
                                     .font(.system(size: 11, weight: .bold))
                                     .padding(.horizontal, 9)
                                     .padding(.vertical, 4)
-                                    .background(.ink.opacity(0.1), in: .capsule)
+                                    .background(.white.opacity(0.1), in: .capsule)
                             }
                         }
                     }
@@ -378,7 +378,7 @@ struct NowPlayingPanel: View {
                             Artwork(item: artist, size: 52, isCircle: true, glow: 0.5)
                             Text(artist.title).font(.system(size: 15, weight: .bold))
                             Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.ink.opacity(0.4))
+                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.white.opacity(0.4))
                         }
                         .contentShape(.rect)
                     }
@@ -386,7 +386,7 @@ struct NowPlayingPanel: View {
                     if let note = artist.note {
                         Text(note.strippingTags)
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.ink.opacity(0.65))
+                            .foregroundStyle(.white.opacity(0.65))
                             .lineLimit(5)
                     }
                 }
@@ -439,7 +439,7 @@ struct NowPlayingPanel: View {
             HStack {
                 Label(title, systemImage: symbol)
                 .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(.ink.opacity(0.45))
+                .foregroundStyle(.white.opacity(0.45))
                 .labelStyle(.titleAndIcon)
                 Spacer()
                 accessory()
@@ -448,13 +448,13 @@ struct NowPlayingPanel: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ink.opacity(0.05), in: .rect(cornerRadius: 18, style: .continuous))
+        .background(.white.opacity(0.05), in: .rect(cornerRadius: 18, style: .continuous))
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     private func fact(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.system(size: 10, weight: .bold)).foregroundStyle(.ink.opacity(0.4))
+            Text(label).font(.system(size: 10, weight: .bold)).foregroundStyle(.white.opacity(0.4))
             Text(value).font(.system(size: 13, weight: .semibold)).lineLimit(2)
         }
     }
@@ -484,13 +484,13 @@ private struct CompactRow: View {
                 }
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 12, weight: .semibold))
-                Text(subtitle).font(.system(size: 11)).foregroundStyle(.ink.opacity(0.5))
+                Text(subtitle).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
             }
             .lineLimit(1)
             Spacer(minLength: 0)
         }
         .padding(6)
-        .background(.ink.opacity(isHovered ? 0.07 : 0), in: .rect(cornerRadius: 10, style: .continuous))
+        .background(.white.opacity(isHovered ? 0.07 : 0), in: .rect(cornerRadius: 10, style: .continuous))
         .contentShape(.rect)
         .onHover { isHovered = $0 }
         .clickable()
@@ -519,7 +519,7 @@ private struct PanelVisualizer: View {
                     let value = spectrum.isEmpty ? 0 : CGFloat(spectrum[band])
                     let height = max(size.height * value, width)
                     let rect = CGRect(x: CGFloat(bar) * (width + gap), y: (size.height - height) / 2, width: width, height: height)
-                    let color = colors.isEmpty ? Color.ink : colors[bar * colors.count / count]
+                    let color = colors.isEmpty ? Color.white : colors[bar * colors.count / count]
                     context.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(color.opacity(0.95)))
                 }
             }
@@ -547,7 +547,7 @@ private struct ExpandedLyrics: View {
                         if line.isInterlude {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 14, weight: .heavy))
-                                .foregroundStyle(.ink.opacity(index == current ? 0.9 : 0.3))
+                                .foregroundStyle(.white.opacity(index == current ? 0.9 : 0.3))
                                 .id(line.id)
                         } else {
                             Text(line.text)

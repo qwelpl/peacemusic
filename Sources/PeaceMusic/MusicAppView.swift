@@ -34,9 +34,6 @@ struct MusicAppView: View {
 
     @State private var songTheme = SongTheme()
     @State private var menus = MenuPresenter()
-    @AppStorage(AppLook.key) private var lookRaw = AppLook.dark.rawValue
-
-    private var look: AppLook { AppLook(rawValue: lookRaw) ?? .dark }
 
     var body: some View {
         ZStack {
@@ -53,11 +50,13 @@ struct MusicAppView: View {
         // Only the colors fade. Animating the whole window on a song change dragged every
         // other change made at the same moment (play button, titles) through the fade too.
         .onChange(of: store.accentColors) {
-            withAnimation(.easeInOut(duration: 0.8)) { songTheme = currentSongTheme }
+            let next = store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors)
+            withAnimation(.easeInOut(duration: 0.8)) { songTheme = next }
         }
-        .onChange(of: store.track == nil) { songTheme = currentSongTheme }
-        .onChange(of: look) { songTheme = currentSongTheme }
-        .preferredColorScheme(look.scheme)
+        .onChange(of: store.track == nil) {
+            songTheme = store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors)
+        }
+        .preferredColorScheme(.dark)
         .onAppear {
             store.start()
             if CommandLine.arguments.contains("--settings") { destination = .settings }
@@ -71,10 +70,6 @@ struct MusicAppView: View {
         .task(id: store.status) {
             if store.status == .ok { await store.refreshLibraryPlaylists() }
         }
-    }
-
-    private var currentSongTheme: SongTheme {
-        store.track == nil ? SongTheme() : SongTheme(accents: store.accentColors, light: look == .light)
     }
 
     // Padding, sidebar, gaps, panel, and the narrowest the page should get beside them.
@@ -106,7 +101,6 @@ struct MusicAppView: View {
 
             if showsNowPlaying {
                 NowPlayingView(onClose: closeNowPlaying)
-                    .environment(\.colorScheme, .dark)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(2)
             }
@@ -209,26 +203,8 @@ struct MusicAppView: View {
 
 private struct AmbientBackground: View {
     @Environment(PlayerStore.self) private var store
-    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        if scheme == .light { light } else { dark }
-    }
-
-    // A pale gray page with only a breath of the song's color at the top.
-    private var light: some View {
-        ZStack {
-            Color(white: 0.89)
-            LinearGradient(
-                colors: [(store.accentColors.first ?? .clear).opacity(0.12), .clear],
-                startPoint: .top, endPoint: .center
-            )
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-    }
-
-    private var dark: some View {
         ZStack {
             // Kept still: a moving backdrop makes every glass panel above it redraw each frame.
             FluidBackground(colors: store.meshColors, trackID: store.track?.id, isPlaying: false, fade: 0.5)
@@ -358,7 +334,7 @@ private struct LibrarySongs: View {
                     })
                     Spacer()
                     HStack(spacing: 6) {
-                        Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.ink.opacity(0.6))
+                        Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.white.opacity(0.6))
                         TextField("Filter \(songs.count) songs", text: $filter).textFieldStyle(.plain)
                     }
                     .font(.system(size: 12, weight: .medium))
@@ -401,7 +377,7 @@ private struct SearchPage: View {
                 if shelves.isEmpty && searchDone {
                     Text("Nothing matched. Try another spelling.")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.ink.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.55))
                         .frame(maxWidth: .infinity, minHeight: 240)
                 }
                 ForEach(shelves) { shelf in
@@ -438,7 +414,7 @@ private struct SearchPage: View {
         } label: {
             Text(title)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(inLibrary == value ? theme.onAccent : .ink.opacity(0.8))
+                .foregroundStyle(inLibrary == value ? theme.onAccent : .white.opacity(0.8))
                 .padding(.horizontal, 14)
                 .frame(height: 28)
                 .background {
@@ -517,7 +493,7 @@ private struct CollectionPage: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(item.kind == .album ? "Album" : "Playlist")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.ink.opacity(0.55))
+                .foregroundStyle(.white.opacity(0.55))
             Text(shown.title)
                 .font(.system(size: 44, weight: .heavy))
                 .tracking(-1)
@@ -526,18 +502,18 @@ private struct CollectionPage: View {
                 .yieldsWidth()
             Text(shown.subtitle)
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(.ink.opacity(0.8))
+                .foregroundStyle(.white.opacity(0.8))
                 .lineLimit(1)
                 .yieldsWidth()
             Text(meta(shown))
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.ink.opacity(0.5))
+                .foregroundStyle(.white.opacity(0.5))
                 .lineLimit(1)
                 .yieldsWidth()
             if let note = shown.note {
                 Text(note.strippingTags)
                     .font(.system(size: 13))
-                    .foregroundStyle(.ink.opacity(0.6))
+                    .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(3)
                     .frame(maxWidth: 560, alignment: .leading)
                     .yieldsWidth()
@@ -609,7 +585,7 @@ private struct ArtistPage: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Artist")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.ink.opacity(0.55))
+                .foregroundStyle(.white.opacity(0.55))
             Text(artist.title)
                 .font(.system(size: 56, weight: .heavy))
                 .tracking(-1.5)
@@ -633,7 +609,7 @@ private struct StationPage: View {
             Artwork(item: item, size: 300, cornerRadius: 24, glow: 1)
             Text(item.title).font(.system(size: 40, weight: .heavy)).tracking(-1)
             if let note = item.note {
-                Text(note.strippingTags).foregroundStyle(.ink.opacity(0.6)).multilineTextAlignment(.center).frame(maxWidth: 480)
+                Text(note.strippingTags).foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.center).frame(maxWidth: 480)
             }
             Button { store.play(item) } label: {
                 Label("Listen Now", systemImage: "play.fill")
@@ -676,7 +652,7 @@ private struct SignInView: View {
             Text("Peace").font(.system(size: 54, weight: .heavy)).tracking(-1.5)
             Text("All of Apple Music, beautifully. Sign in once with your Apple Account.")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.ink.opacity(0.65))
+                .foregroundStyle(.white.opacity(0.65))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
             Button(action: store.signIn) {
@@ -741,11 +717,11 @@ private struct PlayerDock: View {
     private var nowPlaying: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.ink.opacity(0.08))
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.08))
                 if let artwork = store.artwork {
                     Image(nsImage: artwork).resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    Image(systemName: "music.note").foregroundStyle(.ink.opacity(0.5))
+                    Image(systemName: "music.note").foregroundStyle(.white.opacity(0.5))
                 }
             }
             .frame(width: 50, height: 50)
@@ -756,7 +732,7 @@ private struct PlayerDock: View {
                     .font(.system(size: 13, weight: .bold))
                 Text(store.track?.artist ?? "Pick something to play")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.ink.opacity(0.6))
+                    .foregroundStyle(.white.opacity(0.6))
             }
             .lineLimit(1)
         }
@@ -826,10 +802,10 @@ private struct PlayerDock: View {
             .help("Song details, lyrics and Up Next")
             dockButton("pip.enter", size: 14, action: miniPlayer.open)
                 .help("Mini Player")
-            Image(systemName: "speaker.wave.2.fill").font(.system(size: 11)).foregroundStyle(.ink.opacity(0.55))
+            Image(systemName: "speaker.wave.2.fill").font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
             Slider(value: Binding(get: { store.volume }, set: store.setVolume), in: 0...1)
                 .controlSize(.small)
-                .tint(.ink)
+                .tint(.white)
                 .frame(width: 80)
             OutputPicker()
         }
@@ -849,7 +825,7 @@ private struct PlayerDock: View {
                 Text("-" + SongRow.time(max(duration - position, 0))).frame(width: 40, alignment: .leading)
             }
             .font(.system(size: 10, weight: .semibold).monospacedDigit())
-            .foregroundStyle(.ink.opacity(0.55))
+            .foregroundStyle(.white.opacity(0.55))
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 8)
@@ -860,7 +836,7 @@ private struct PlayerDock: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .bold))
-                .foregroundStyle(.ink.opacity(dimmed ? 0.45 : 0.95))
+                .foregroundStyle(.white.opacity(dimmed ? 0.45 : 0.95))
                 .frame(width: 38, height: 38)
                 .contentShape(.rect)
                 .contentTransition(.symbolEffect(.replace))

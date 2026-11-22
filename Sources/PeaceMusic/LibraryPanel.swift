@@ -34,7 +34,7 @@ struct LibraryPanel: View {
                     } else if showsEmptyMessage {
                         Text(isSearching ? "Nothing found in your library" : "Nothing here yet")
                             .font(theme.font(13, .medium))
-                            .foregroundStyle(.ink.opacity(0.55))
+                            .foregroundStyle(.white.opacity(0.55))
                             .frame(maxWidth: .infinity)
                             .padding(30)
                     }
@@ -83,19 +83,19 @@ struct LibraryPanel: View {
             }
             .buttonStyle(.pointer)
         }
-        .foregroundStyle(.ink)
+        .foregroundStyle(.white)
     }
 
     private var searchField: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.ink.opacity(0.6))
+            Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.6))
             TextField("Songs, artists, albums", text: $query)
                 .textFieldStyle(.plain)
-                .foregroundStyle(.ink)
+                .foregroundStyle(.white)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(.ink.opacity(0.1), in: .rect(cornerRadius: theme.cornerRadius(18), style: .continuous))
+        .background(.white.opacity(0.1), in: .rect(cornerRadius: theme.cornerRadius(18), style: .continuous))
     }
 
     @ViewBuilder
@@ -155,13 +155,13 @@ private struct PlaylistRow: View {
                         .lineLimit(1)
                     Text("\(playlist.trackCount) songs")
                         .font(theme.font(12, .medium))
-                        .foregroundStyle(.ink.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.55))
                 }
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(.ink)
+            .foregroundStyle(.white)
             .padding(6)
-            .background(.ink.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(12), style: .continuous))
+            .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(12), style: .continuous))
             .contentShape(.rect)
         }
         .buttonStyle(.pointer)
@@ -192,7 +192,7 @@ private struct TrackRow: View {
                         .lineLimit(1)
                     Text(track.artist)
                         .font(theme.font(12, .medium))
-                        .foregroundStyle(.ink.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.55))
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -200,10 +200,10 @@ private struct TrackRow: View {
                     Image(systemName: "waveform").font(.system(size: 12, weight: .bold))
                 }
             }
-            .foregroundStyle(.ink)
+            .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(.ink.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(10), style: .continuous))
+            .background(.white.opacity(isHovered ? 0.1 : 0), in: .rect(cornerRadius: theme.cornerRadius(10), style: .continuous))
             .contentShape(.rect)
         }
         .buttonStyle(.pointer)
