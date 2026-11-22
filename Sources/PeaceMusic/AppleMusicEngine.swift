@@ -486,6 +486,24 @@ final class AppleMusicEngine: NSObject {
             return result;
         };
         window.addEventListener('message', e => send('message from ' + e.origin, [typeof e.data === 'string' ? e.data.slice(0, 200) : JSON.stringify(e.data).slice(0, 200)]));
+        // After sign-in the page asks auth.music.apple.com to set the media-user-token cookie
+        // and reads the token back from it. That request is refused in a web view, which
+        // left the page signed out a second later, so the cookie is written here instead.
+        const fetch = window.fetch;
+        window.fetch = async function (input, init) {
+            const response = await fetch.apply(this, arguments);
+            const url = String(input && input.url || input);
+            if (response.status >= 400) send('http ' + response.status, [(init && init.method) || 'GET', url.slice(0, 200)]);
+            if (!response.ok && url === 'https://auth.music.apple.com/auth/v2/web' && location.host === 'music.apple.com') {
+                const token = window.MusicKit && MusicKit.getInstance && MusicKit.getInstance() && MusicKit.getInstance().musicUserToken;
+                if (token) {
+                    const expires = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toUTCString();
+                    document.cookie = `media-user-token=${token}; expires=${expires}; domain=music.apple.com; path=/; secure`;
+                    send('warn', ['peace wrote media-user-token after reflection ' + response.status]);
+                }
+            }
+            return response;
+        };
     })();
     """
 
