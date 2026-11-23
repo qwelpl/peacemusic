@@ -934,21 +934,22 @@ private struct StudioCompactMini: View {
                 MiniLyricLine(fallback: store.track?.artist ?? "")
                     .font(lyricFont.font(11, .medium, theme: theme))
                     .foregroundStyle(.white.opacity(0.5))
+                // Under the words rather than along the edge, where the cover and the
+                // rounded corners cut into it.
+                StudioMiniProgress(accent: accent, showsTime: false)
+                    .padding(.top, 5)
             }
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: store.isPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(accent)
+                .frame(width: 28, height: 28)
+                .studioPanel(cornerRadius: 8)
                 .contentTransition(.symbolEffect(.replace))
         }
         .padding(.leading, 14)
-        .padding(.trailing, 20)
-        .overlay(alignment: .bottom) {
-            StudioMiniProgress(accent: accent, showsTime: false)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 6)
-        }
+        .padding(.trailing, 16)
     }
 }
 
