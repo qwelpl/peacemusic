@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum Destination: Hashable {
-    case home, new, radio
+    case home, new, radio, replay
     case library(LibrarySection)
     case playlist(MediaItem)
     case settings
@@ -31,6 +31,7 @@ struct LeftSidebar: View {
                         row("Home", "house.fill", .home)
                         row("New", "sparkles", .new)
                         row("Radio", "dot.radiowaves.left.and.right", .radio)
+                        row("Replay", "chart.bar.fill", .replay)
                     }
                     group("Library") {
                         row("Recently Added", "clock.fill", .library(.recent))

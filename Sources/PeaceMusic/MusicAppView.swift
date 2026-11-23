@@ -209,6 +209,7 @@ struct MusicAppView: View {
                 case .home: HomePage().transition(.opacity)
                 case .new: ShelfPage(title: "New", subtitle: "Charts and releases", id: "new") { await store.catalog.browse(update: $0) }.transition(.opacity)
                 case .radio: ShelfPage(title: "Radio", subtitle: "Stations and live shows", id: "radio") { await store.catalog.radio(update: $0) }.transition(.opacity)
+                case .replay: ShelfPage(title: "Replay", subtitle: "Your most played this year", id: "replay") { await store.catalog.replay(update: $0) }.transition(.opacity)
                 case .library(let section): LibraryPage(section: section).transition(.opacity)
                 case .playlist(let item): DetailPage(item: item).id(item.id).transition(.opacity)
                 case .settings: SettingsPage().transition(.opacity)

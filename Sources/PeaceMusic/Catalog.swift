@@ -185,6 +185,31 @@ struct MusicCatalog {
         return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
     }
 
+    // Apple Music Replay: the year's most played songs, albums and artists, the same summary
+    // music.apple.com/replay draws, then the account's Replay playlists from past years.
+    func replay(update: @escaping ([Shelf]) -> Void = { _ in }) async -> [Shelf] {
+        let loaders: [@MainActor () async -> [Shelf]] = [
+            {
+                let response = await engine.api("/v1/me/music-summaries/search", [
+                    "filter[year]": "latest",
+                    "views": "top-songs,top-albums,top-artists",
+                ])
+                guard let summary = (response?["data"] as? [[String: Any]])?.first else { return [] }
+                let year = ((summary["attributes"] as? [String: Any])?["year"]).map { " of \($0)" } ?? ""
+                let views = summary["views"] as? [String: Any]
+                return [("top-songs", "Top Songs"), ("top-albums", "Top Albums"), ("top-artists", "Top Artists")].compactMap { key, title in
+                    let items = MediaItem.list(views?[key])
+                    return items.isEmpty ? nil : Shelf(title: title + year, items: items)
+                }
+            },
+            {
+                let playlists = await libraryPlaylists().filter { $0.title.hasPrefix("Replay") }
+                return playlists.isEmpty ? [] : [Shelf(title: "Replay Playlists", items: playlists.sorted { $0.title > $1.title })]
+            },
+        ]
+        return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
+    }
+
     private func shelf(_ title: String, _ response: [String: Any]?) -> [Shelf] {
         let items = MediaItem.list(response)
         return items.isEmpty ? [] : [Shelf(title: title, items: items)]

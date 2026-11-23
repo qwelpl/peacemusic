@@ -56,6 +56,7 @@ struct StudioSidebar: View {
                     row("Home", "house.fill", .home)
                     row("New", "sparkles", .new)
                     row("Radio", "dot.radiowaves.left.and.right", .radio)
+                    row("Replay", "chart.bar.fill", .replay)
                     divider
                     header("Library")
                     row("Recently Added", "clock.fill", .library(.recent))
