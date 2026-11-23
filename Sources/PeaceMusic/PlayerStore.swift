@@ -33,6 +33,24 @@ final class PlayerStore {
 
     var isPlaying: Bool { state == .playing }
 
+    // The playing song as a catalog or library item, so Peace's menu can add it to the
+    // library or a playlist. Library songs have ids starting "i.".
+    var currentItem: MediaItem? {
+        guard let track else { return nil }
+        return MediaItem([
+            "id": track.id,
+            "type": track.id.hasPrefix("i.") ? "library-songs" : "songs",
+            "attributes": [
+                "name": track.title,
+                "artistName": track.artist,
+                "albumName": track.album,
+                "durationInMillis": track.duration * 1000,
+                "artwork": ["url": bridge.artworkURL?.absoluteString as Any],
+                "playParams": ["id": track.id],
+            ] as [String: Any],
+        ])
+    }
+
     let bridge = AppleMusicEngine()
     let isDemo = CommandLine.arguments.contains { $0.hasPrefix("--demo") }
 

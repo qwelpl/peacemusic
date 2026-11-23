@@ -841,6 +841,10 @@ private struct PlayerDock: View {
         HStack(spacing: 6) {
             dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
                 .help("Love")
+            if let item = store.currentItem {
+                MoreButton(item: item, size: 38)
+                    .help("Add to Library or a Playlist")
+            }
             dockButton("sidebar.right", size: 14, dimmed: !showsSongPanel) { showsSongPanel.toggle() }
                 .help("Song details, lyrics and Up Next")
             OutputPicker()
@@ -851,6 +855,10 @@ private struct PlayerDock: View {
         HStack(spacing: 6) {
             dockButton(store.favorited ? "heart.fill" : "heart", size: 14, action: store.toggleFavorite)
                 .help("Love")
+            if let item = store.currentItem {
+                MoreButton(item: item, size: 38)
+                    .help("Add to Library or a Playlist")
+            }
             dockButton("waveform", size: 14, action: openNowPlaying)
                 .help("Visualizer")
             // Lyrics on or off in the song panel.

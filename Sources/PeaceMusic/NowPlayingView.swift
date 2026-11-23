@@ -231,6 +231,12 @@ struct NowPlayingView: View {
                 )
                 .help("Favorite")
                 .opacity(chromeVisible ? 1 : 0)
+                if let item = store.currentItem {
+                    MoreButton(item: item, size: 38, glass: true)
+                        .help("Add to Library or a Playlist")
+                        .opacity(chromeVisible ? 1 : 0)
+                        .allowsHitTesting(chromeVisible)
+                }
             }
             VStack(spacing: 12) {
                 ProgressRow()

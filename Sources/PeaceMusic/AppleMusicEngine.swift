@@ -14,7 +14,7 @@ final class AppleMusicEngine: NSObject {
     private var hostWindow: NSWindow?
     private var signInWindow: NSWindow?
     private var popupWindows: [WKWebView: NSWindow] = [:]
-    private var artworkURL: URL?
+    private(set) var artworkURL: URL?
     private var playlistTracks: [String: [Track]] = [:]
     private var started = false
     // One restore per page load, so a token Apple has revoked can't bounce forever.

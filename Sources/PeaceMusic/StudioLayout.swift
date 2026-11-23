@@ -320,6 +320,10 @@ struct StudioPlayerBar: View {
 
     private func extras(volume: Bool) -> some View {
         HStack(spacing: 2) {
+            if let item = store.currentItem {
+                MoreButton(item: item, size: 38)
+                    .help("Add to Library or a Playlist")
+            }
             // Lyrics on or off in the song panel.
             button(showsLyricsCard ? "quote.bubble.fill" : "quote.bubble", size: 14, dimmed: !(showsSongPanel && showsLyricsCard)) {
                 if !showsSongPanel {
