@@ -193,10 +193,18 @@ struct MusicCatalog {
         return (response?["data"] as? [[String: Any]] ?? []).compactMap(ReplayYear.init).sorted { $0.year > $1.year }
     }
 
+    /// Each finished month of a year. Apple holds back a year's own totals until it ends,
+    /// so the months are where this year's minutes come from.
+    func replayMonths(_ year: ReplayYear) async -> [ReplayMonth] {
+        let response = await engine.api("/v1/me/music-summaries/search", ["period": "month", "year": String(year.year)])
+        return (response?["data"] as? [[String: Any]] ?? []).compactMap(ReplayMonth.init).sorted { $0.month < $1.month }
+    }
+
     /// One year's most played songs, albums and artists with their play counts, and the
     /// milestones reached along the way.
     func replay(_ year: ReplayYear) async -> ReplaySummary {
         async let milestonesResponse = engine.api("/v1/me/music-summaries/milestones", ["ids": year.id])
+        async let months = replayMonths(year)
         let response = await engine.api("/v1/me/music-summaries", ["ids": year.id, "views": "top-artists,top-albums,top-songs"])
         let views = ((response?["data"] as? [[String: Any]])?.first?["views"]) as? [String: Any]
 
@@ -225,7 +233,8 @@ struct MusicCatalog {
             songs: entries(songs) { id, _ in found[id] },
             albums: entries(ranked("top-albums", "album")) { _, resource in MediaItem(resource) },
             artists: entries(ranked("top-artists", "artist")) { _, resource in MediaItem(resource) },
-            milestones: milestones
+            milestones: milestones,
+            months: await months
         )
     }
 
@@ -475,6 +484,24 @@ struct ReplayYear: Identifiable, Hashable {
     }
 }
 
+struct ReplayMonth: Identifiable {
+    let month: Int
+    let name: String
+    let minutes: Int
+    let songs: Int
+    let artists: Int
+    var id: Int { month }
+
+    init?(_ resource: [String: Any]) {
+        guard let attributes = resource["attributes"] as? [String: Any], let month = attributes["month"] as? Int else { return nil }
+        self.month = month
+        name = attributes["name"] as? String ?? ""
+        minutes = attributes["listenTimeInMinutes"] as? Int ?? 0
+        songs = attributes["uniqueSongCount"] as? Int ?? 0
+        artists = attributes["uniqueArtistCount"] as? Int ?? 0
+    }
+}
+
 struct ReplayEntry: Identifiable {
     let item: MediaItem
     let plays: Int
@@ -506,6 +533,7 @@ struct ReplaySummary {
     var albums: [ReplayEntry] = []
     var artists: [ReplayEntry] = []
     var milestones: [ReplayMilestone] = []
+    var months: [ReplayMonth] = []
 
     var isEmpty: Bool { songs.isEmpty && albums.isEmpty && artists.isEmpty }
 

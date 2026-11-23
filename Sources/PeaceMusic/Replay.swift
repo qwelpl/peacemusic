@@ -69,6 +69,7 @@ private struct ReplayYearView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 44) {
             header
+            if !summary.months.isEmpty { months }
             if !summary.artists.isEmpty { artists }
             if !summary.songs.isEmpty { songs }
             if !summary.albums.isEmpty { albums }
@@ -104,6 +105,9 @@ private struct ReplayYearView: View {
         var stats: [(String, String)] = []
         if let minutes = year.minutes {
             stats.append((minutes.formatted(), "Minutes"))
+        } else if let last = summary.months.last {
+            // Exact to the end of the last finished month.
+            stats.append((summary.months.map(\.minutes).reduce(0, +).formatted(), "Minutes through \(last.name)"))
         } else if let minutes = summary.best("listen-time") {
             stats.append((minutes.formatted() + "+", "Minutes"))
         }
@@ -117,6 +121,39 @@ private struct ReplayYearView: View {
             stats.append((top.formatted(), "Minutes with \(summary.artists.first!.item.title)"))
         }
         return stats
+    }
+
+    // Minutes each month as bars, with that month's song and artist counts beneath.
+    private var months: some View {
+        let most = max(summary.months.map(\.minutes).max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(title: "By Month")
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(summary.months) { month in
+                    VStack(spacing: 6) {
+                        Text(month.minutes.formatted())
+                            .font(.system(size: 10, weight: .bold).monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(.white.opacity(month.minutes == most ? 0.9 : 0.35))
+                            .frame(height: max(4, 140 * CGFloat(month.minutes) / CGFloat(most)))
+                        Text(String(month.name.prefix(3)))
+                            .font(.system(size: 11, weight: .bold))
+                        Text("\(month.songs.formatted()) songs")
+                            .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.45))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .help("\(month.name): \(month.minutes.formatted()) minutes, \(month.songs.formatted()) songs, \(month.artists.formatted()) artists")
+                }
+            }
+            .frame(maxWidth: 760)
+            .padding(.horizontal, Layout.gutter)
+        }
     }
 
     private var artists: some View {
