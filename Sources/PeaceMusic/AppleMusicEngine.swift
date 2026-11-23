@@ -158,10 +158,20 @@ final class AppleMusicEngine: NSObject {
         do {
             result = try await call("""
         const path = rawPath.replace('{storefront}', music.storefrontId);
-        const fetchOptions = { method };
-        if (bodyText) { fetchOptions.body = bodyText; fetchOptions.headers = { 'Content-Type': 'application/json' }; }
-        const response = await music.api.music(path, parameters, { fetchOptions });
-        return JSON.stringify(response.data ?? {});
+        if (method === 'GET') {
+            const response = await music.api.music(path, parameters);
+            return JSON.stringify(response.data ?? {});
+        }
+        // MusicKit's api.music sends every request as a GET, so changes go out by hand.
+        const url = new URL('https://amp-api.music.apple.com' + path);
+        for (const [key, value] of Object.entries(parameters)) url.searchParams.set(key, value);
+        const headers = { Authorization: 'Bearer ' + music.developerToken, 'Music-User-Token': music.musicUserToken };
+        const init = { method, headers };
+        if (bodyText) { init.body = bodyText; headers['Content-Type'] = 'application/json'; }
+        const response = await fetch(url, init);
+        const text = await response.text();
+        if (!response.ok && !text) return JSON.stringify({ errors: [{ status: String(response.status) }] });
+        return text || '{}';
         """, ["rawPath": path, "parameters": parameters, "method": method, "bodyText": bodyText ?? ""])
         } catch {
             Self.logger.error("api \(method) \(path): \(error)")
@@ -371,14 +381,14 @@ final class AppleMusicEngine: NSObject {
 
     func setFavorited(_ on: Bool) {
         guard let id = snapshot.track?.id else { return }
-        send("""
-        const path = `/v1/me/ratings/songs/${id}`;
-        if (on) {
-            await music.api.music(path, {}, { fetchOptions: { method: 'PUT', body: JSON.stringify({ type: 'rating', attributes: { value: 1 } }) } });
-        } else {
-            await music.api.music(path, {}, { fetchOptions: { method: 'DELETE' } });
+        let path = "/v1/me/ratings/\(id.hasPrefix("i.") ? "library-songs" : "songs")/\(id)"
+        Task {
+            if on {
+                _ = await api(path, method: "PUT", body: ["type": "rating", "attributes": ["value": 1]])
+            } else {
+                _ = await api(path, method: "DELETE")
+            }
         }
-        """, ["id": id, "on": on])
     }
 
     // Apple's own lyrics, timed syllable by syllable, as TTML. Nil when the song has none.
