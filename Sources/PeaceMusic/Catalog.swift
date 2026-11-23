@@ -185,29 +185,48 @@ struct MusicCatalog {
         return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
     }
 
-    // Apple Music Replay: the year's most played songs, albums and artists, the same summary
-    // music.apple.com/replay draws, then the account's Replay playlists from past years.
-    func replay(update: @escaping ([Shelf]) -> Void = { _ in }) async -> [Shelf] {
-        let loaders: [@MainActor () async -> [Shelf]] = [
-            {
-                let response = await engine.api("/v1/me/music-summaries/search", [
-                    "filter[year]": "latest",
-                    "views": "top-songs,top-albums,top-artists",
-                ])
-                guard let summary = (response?["data"] as? [[String: Any]])?.first else { return [] }
-                let year = ((summary["attributes"] as? [String: Any])?["year"]).map { " of \($0)" } ?? ""
-                let views = summary["views"] as? [String: Any]
-                return [("top-songs", "Top Songs"), ("top-albums", "Top Albums"), ("top-artists", "Top Artists")].compactMap { key, title in
-                    let items = MediaItem.list(views?[key])
-                    return items.isEmpty ? nil : Shelf(title: title + year, items: items)
-                }
-            },
-            {
-                let playlists = await libraryPlaylists().filter { $0.title.hasPrefix("Replay") }
-                return playlists.isEmpty ? [] : [Shelf(title: "Replay Playlists", items: playlists.sorted { $0.title > $1.title })]
-            },
-        ]
-        return await gather(loaders) { update($0.flatMap { $0 }) }.flatMap { $0 }
+    // MARK: Replay
+
+    /// Every year Apple has a Replay for, newest first, each with its playlist.
+    func replayYears() async -> [ReplayYear] {
+        let response = await engine.api("/v1/me/music-summaries/search", ["period": "year", "include[music-summaries]": "playlist"])
+        return (response?["data"] as? [[String: Any]] ?? []).compactMap(ReplayYear.init).sorted { $0.year > $1.year }
+    }
+
+    /// One year's most played songs, albums and artists with their play counts, and the
+    /// milestones reached along the way.
+    func replay(_ year: ReplayYear) async -> ReplaySummary {
+        async let milestonesResponse = engine.api("/v1/me/music-summaries/milestones", ["ids": year.id])
+        let response = await engine.api("/v1/me/music-summaries", ["ids": year.id, "views": "top-artists,top-albums,top-songs"])
+        let views = ((response?["data"] as? [[String: Any]])?.first?["views"]) as? [String: Any]
+
+        func ranked(_ view: String, _ relationship: String) -> [(id: String, resource: [String: Any], summary: [String: Any])] {
+            ((views?[view] as? [String: Any])?["data"] as? [[String: Any]] ?? []).compactMap { entry in
+                let related = ((entry["relationships"] as? [String: Any])?[relationship] as? [String: Any])?["data"] as? [[String: Any]]
+                guard let resource = related?.first, let id = resource["id"] as? String else { return nil }
+                return (id, resource, entry["attributes"] as? [String: Any] ?? [:])
+            }
+        }
+
+        // Songs come back as bare ids, so their names and artwork are looked up in one go.
+        let songs = ranked("top-songs", "song")
+        var found: [String: MediaItem] = [:]
+        if !songs.isEmpty {
+            let catalog = await engine.api("/v1/catalog/{storefront}/songs", ["ids": songs.map(\.id).joined(separator: ",")])
+            for item in MediaItem.list(catalog) { found[item.id] = item }
+        }
+        func entries(_ list: [(id: String, resource: [String: Any], summary: [String: Any])], lookup: (String, [String: Any]) -> MediaItem?) -> [ReplayEntry] {
+            list.compactMap { id, resource, summary in
+                lookup(id, resource).map { ReplayEntry(item: $0, plays: summary["playCount"] as? Int ?? 0, minutes: summary["listenTimeInMinutes"] as? Int) }
+            }
+        }
+        let milestones = (await milestonesResponse?["data"] as? [[String: Any]] ?? []).compactMap(ReplayMilestone.init)
+        return ReplaySummary(
+            songs: entries(songs) { id, _ in found[id] },
+            albums: entries(ranked("top-albums", "album")) { _, resource in MediaItem(resource) },
+            artists: entries(ranked("top-artists", "artist")) { _, resource in MediaItem(resource) },
+            milestones: milestones
+        )
     }
 
     private func shelf(_ title: String, _ response: [String: Any]?) -> [Shelf] {
@@ -425,5 +444,73 @@ struct MusicCatalog {
             body["relationships"] = ["tracks": ["data": [["id": item.id, "type": type]]]]
         }
         _ = await engine.api("/v1/me/library/playlists", method: "POST", body: body)
+    }
+}
+
+
+// MARK: Replay
+
+struct ReplayYear: Identifiable, Hashable {
+    let id: String
+    let year: Int
+    let playlist: MediaItem?
+    // Apple fills these in once the year is over.
+    let minutes: Int?
+    let songCount: Int?
+    let artistCount: Int?
+    let albumCount: Int?
+    let genreCount: Int?
+
+    init?(_ resource: [String: Any]) {
+        guard let id = resource["id"] as? String, let attributes = resource["attributes"] as? [String: Any],
+              let year = attributes["year"] as? Int else { return nil }
+        self.id = id
+        self.year = year
+        playlist = MediaItem.list(((resource["relationships"] as? [String: Any])?["playlist"])).first
+        minutes = attributes["listenTimeInMinutes"] as? Int
+        songCount = attributes["uniqueSongCount"] as? Int
+        artistCount = attributes["uniqueArtistCount"] as? Int
+        albumCount = attributes["uniqueAlbumCount"] as? Int
+        genreCount = attributes["uniqueGenreCount"] as? Int
+    }
+}
+
+struct ReplayEntry: Identifiable {
+    let item: MediaItem
+    let plays: Int
+    let minutes: Int?
+    var id: String { item.id }
+}
+
+// "50,000 minutes", "500 artists": the marks Apple hands out as the year goes on.
+struct ReplayMilestone: Identifiable {
+    let id: String
+    let kind: String
+    let value: Int
+    let reached: String?
+
+    init?(_ resource: [String: Any]) {
+        guard let id = resource["id"] as? String, let attributes = resource["attributes"] as? [String: Any],
+              attributes["status"] as? String == "achieved",
+              let kind = attributes["kind"] as? String,
+              let value = (attributes["value"] as? String).flatMap(Int.init) ?? attributes["value"] as? Int else { return nil }
+        self.id = id
+        self.kind = kind
+        self.value = value
+        reached = attributes["dateReached"] as? String
+    }
+}
+
+struct ReplaySummary {
+    var songs: [ReplayEntry] = []
+    var albums: [ReplayEntry] = []
+    var artists: [ReplayEntry] = []
+    var milestones: [ReplayMilestone] = []
+
+    var isEmpty: Bool { songs.isEmpty && albums.isEmpty && artists.isEmpty }
+
+    // The highest mark reached of each kind.
+    func best(_ kind: String) -> Int? {
+        milestones.filter { $0.kind == kind }.map(\.value).max()
     }
 }
