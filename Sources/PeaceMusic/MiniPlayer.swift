@@ -3,7 +3,7 @@ import Observation
 import SwiftUI
 
 enum MiniStyle: String, CaseIterable, Identifiable {
-    case disc, sleeve, square
+    case disc, sleeve, square, studio
 
     static let key = "miniStyle"
 
@@ -13,6 +13,7 @@ enum MiniStyle: String, CaseIterable, Identifiable {
         case .disc: "Disc"
         case .sleeve: "Sleeve"
         case .square: "Square"
+        case .studio: "Studio"
         }
     }
 
@@ -22,7 +23,7 @@ enum MiniStyle: String, CaseIterable, Identifiable {
 
     func size(expanded: Bool) -> NSSize {
         switch self {
-        case .disc, .sleeve: expanded ? NSSize(width: 430, height: 156) : NSSize(width: 300, height: 72)
+        case .disc, .sleeve, .studio: expanded ? NSSize(width: 430, height: 156) : NSSize(width: 300, height: 72)
         case .square: expanded ? NSSize(width: 260, height: 260) : NSSize(width: 84, height: 84)
         }
     }
@@ -31,6 +32,7 @@ enum MiniStyle: String, CaseIterable, Identifiable {
         switch self {
         case .disc, .sleeve: expanded ? 30 : 36
         case .square: expanded ? 28 : 20
+        case .studio: expanded ? 20 : 16
         }
     }
 }
@@ -384,6 +386,13 @@ struct MiniPlayerCard: View {
                 }
             case .square:
                 SquareMini()
+            case .studio:
+                Studio.background
+                if expanded {
+                    StudioExpandedMini().transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    StudioCompactMini().transition(.opacity)
+                }
             }
         }
         .environment(\.miniExpanded, expanded)
@@ -393,7 +402,7 @@ struct MiniPlayerCard: View {
         // Window background dragging misses clicks that land on SwiftUI content.
         .gesture(WindowDragGesture())
         .allowsWindowActivationEvents(true)
-        .overlay(shape.strokeBorder(.white.opacity(theme == .glass ? 0.18 : 0.75), lineWidth: 1))
+        .overlay(shape.strokeBorder(.white.opacity(style == .studio ? 0.1 : theme == .glass ? 0.18 : 0.75), lineWidth: 1))
         .shadow(color: .black.opacity(0.4), radius: 12, y: 5)
     }
 }
@@ -902,5 +911,145 @@ private struct SquareMini: View {
                 .frame(height: 150)
             }
         }
+    }
+}
+
+// MARK: Studio
+
+// The Studio layout's look: flat near-black, hairline boxes, and the song's color (amber
+// with nothing playing) only on the play button and progress.
+private struct StudioCompactMini: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
+
+    var body: some View {
+        let accent = SongTheme(accents: store.accentColors).studioAccent
+        HStack(spacing: 12) {
+            StudioMiniCover(size: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(store.track?.title ?? "Nothing playing")
+                    .font(theme.font(13, .bold))
+                    .foregroundStyle(.white)
+                MiniLyricLine(fallback: store.track?.artist ?? "")
+                    .font(lyricFont.font(11, .medium, theme: theme))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: store.isPlaying ? "pause.fill" : "play.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(accent)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 20)
+        .overlay(alignment: .bottom) {
+            StudioMiniProgress(accent: accent, showsTime: false)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
+        }
+    }
+}
+
+private struct StudioExpandedMini: View {
+    @Environment(PlayerStore.self) private var store
+    @Environment(MiniPlayerController.self) private var miniPlayer
+    @Environment(\.uiTheme) private var theme
+    @Environment(\.lyricFont) private var lyricFont
+    @AppStorage("miniShowsLyrics") private var showsLyrics = true
+
+    var body: some View {
+        let accent = SongTheme(accents: store.accentColors).studioAccent
+        HStack(spacing: 10) {
+            StudioMiniCover(size: 132)
+            VStack(spacing: 8) {
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.track?.title ?? "Nothing playing")
+                            .font(theme.font(14, .bold))
+                            .foregroundStyle(.white)
+                        MiniLyricLine(fallback: store.track?.artist ?? "")
+                            .font(lyricFont.font(12, .medium, theme: theme))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                    .lineLimit(1)
+                    Spacer(minLength: 6)
+                    HStack(spacing: 0) {
+                        SleeveIcon(symbol: miniPlayer.isPinned ? "pin.fill" : "pin", size: 10, isOn: miniPlayer.isPinned, action: miniPlayer.togglePinned)
+                            .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
+                        SleeveIcon(symbol: "quote.bubble", size: 10, isOn: showsLyrics) { showsLyrics.toggle() }
+                            .help(showsLyrics ? "Hide lyrics" : "Show lyrics")
+                        SleeveIcon(symbol: "arrow.up.left.and.arrow.down.right", size: 10, isOn: false, action: miniPlayer.close)
+                            .help("Back to the full player")
+                    }
+                    .offset(x: 6, y: -4)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .studioPanel(cornerRadius: 12)
+                HStack(spacing: 8) {
+                    HStack(spacing: 0) {
+                        SleeveIcon(symbol: "backward.fill", size: 12, action: store.previous)
+                        SleeveIcon(symbol: store.isPlaying ? "pause.fill" : "play.fill", size: 15, action: store.togglePlayPause)
+                        SleeveIcon(symbol: "forward.fill", size: 12, action: store.next)
+                    }
+                    .padding(.horizontal, 4)
+                    .frame(height: 44)
+                    .studioPanel(cornerRadius: 12)
+                    StudioMiniProgress(accent: accent)
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .studioPanel(cornerRadius: 12)
+                }
+            }
+        }
+        .padding(12)
+    }
+}
+
+private struct StudioMiniCover: View {
+    let size: CGFloat
+
+    @Environment(PlayerStore.self) private var store
+    @Environment(\.uiTheme) private var theme
+
+    var body: some View {
+        ArtworkImage(image: store.artwork)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: theme.cornerRadius(size > 60 ? 12 : 7), style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius(size > 60 ? 12 : 7), style: .continuous).strokeBorder(Studio.hairline, lineWidth: 1))
+    }
+}
+
+// A thin line in the song's color, with the times either side when there's room.
+private struct StudioMiniProgress: View {
+    let accent: Color
+    var showsTime = true
+
+    @Environment(PlayerStore.self) private var store
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let duration = store.track?.duration ?? 0
+            let position = store.position(at: context.date)
+            let progress = duration > 0 ? min(position / duration, 1) : 0
+            HStack(spacing: 8) {
+                if showsTime { Text(SongRow.time(position)) }
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.12))
+                        Capsule().fill(accent).frame(width: geometry.size.width * progress)
+                    }
+                }
+                .frame(height: showsTime ? 3 : 2)
+                if showsTime { Text(SongRow.time(duration)) }
+            }
+            .font(.system(size: 10, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.55))
+        }
+        .allowsHitTesting(false)
     }
 }
