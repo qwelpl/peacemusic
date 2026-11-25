@@ -455,6 +455,10 @@ private struct ExpandedMini: View {
                     }
                     .lineLimit(1)
                     Spacer(minLength: 0)
+                    if store.currentItem != nil {
+                        PlayerButton(symbol: "ellipsis", title: "...", diameter: 26, iconSize: 10) { MiniSongMenu.show(store) }
+                            .help("Add to Library or a Playlist")
+                    }
                     PlayerButton(
                         symbol: miniPlayer.isPinned ? "pin.fill" : "pin",
                         title: "Pin",
@@ -756,6 +760,48 @@ private struct SleeveIcon: View {
     }
 }
 
+// The playing song's "…" menu. Peace's own menu draws inside a window and the panel is
+// too small for it, so this is the system's, opened at the pointer.
+@MainActor
+private enum MiniSongMenu {
+    static func show(_ store: PlayerStore) {
+        guard let item = store.currentItem else { return }
+        let menu = NSMenu()
+        menu.appearance = NSAppearance(named: .darkAqua)
+        if !item.isLibrary {
+            menu.addItem(ActionItem("Add to Library", symbol: "plus") { Task { await store.catalog.addToLibrary(item) } })
+        }
+        if !store.libraryPlaylists.isEmpty {
+            let playlists = NSMenu()
+            for playlist in store.libraryPlaylists {
+                playlists.addItem(ActionItem(playlist.title) { Task { await store.catalog.add(item, toPlaylist: playlist) } })
+            }
+            let entry = NSMenuItem(title: "Add to Playlist", action: nil, keyEquivalent: "")
+            entry.image = NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)
+            entry.submenu = playlists
+            menu.addItem(entry)
+        }
+        if !menu.items.isEmpty { menu.addItem(.separator()) }
+        menu.addItem(ActionItem(store.favorited ? "Unlove" : "Love", symbol: store.favorited ? "heart.fill" : "heart", action: store.toggleFavorite))
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private final class ActionItem: NSMenuItem {
+        private let handler: () -> Void
+
+        init(_ title: String, symbol: String? = nil, action handler: @escaping () -> Void) {
+            self.handler = handler
+            super.init(title: title, action: #selector(fire), keyEquivalent: "")
+            target = self
+            if let symbol { image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
+        }
+
+        required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        @objc private func fire() { handler() }
+    }
+}
+
 private struct SleeveCompact: View {
     @Environment(PlayerStore.self) private var store
     @Environment(\.uiTheme) private var theme
@@ -802,6 +848,10 @@ private struct SleeveExpanded: View {
                     .lineLimit(1)
                     Spacer(minLength: 6)
                     HStack(spacing: 0) {
+                        if store.currentItem != nil {
+                            SleeveIcon(symbol: "ellipsis", size: 10, isOn: false) { MiniSongMenu.show(store) }
+                                .help("Add to Library or a Playlist")
+                        }
                         SleeveIcon(symbol: miniPlayer.isPinned ? "pin.fill" : "pin", size: 10, isOn: miniPlayer.isPinned, action: miniPlayer.togglePinned)
                             .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
                         SleeveIcon(symbol: "quote.bubble", size: 10, isOn: showsLyrics) { showsLyrics.toggle() }
@@ -868,6 +918,10 @@ private struct SquareMini: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 Spacer()
+                if store.currentItem != nil {
+                    SleeveIcon(symbol: "ellipsis", size: 10, isOn: false) { MiniSongMenu.show(store) }
+                        .help("Add to Library or a Playlist")
+                }
                 SleeveIcon(symbol: miniPlayer.isPinned ? "pin.fill" : "pin", size: 10, isOn: miniPlayer.isPinned, action: miniPlayer.togglePinned)
                     .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
                 SleeveIcon(symbol: "quote.bubble", size: 10, isOn: showsLyrics) { showsLyrics.toggle() }
@@ -977,6 +1031,10 @@ private struct StudioExpandedMini: View {
                     .lineLimit(1)
                     Spacer(minLength: 6)
                     HStack(spacing: 0) {
+                        if store.currentItem != nil {
+                            SleeveIcon(symbol: "ellipsis", size: 10, isOn: false) { MiniSongMenu.show(store) }
+                                .help("Add to Library or a Playlist")
+                        }
                         SleeveIcon(symbol: miniPlayer.isPinned ? "pin.fill" : "pin", size: 10, isOn: miniPlayer.isPinned, action: miniPlayer.togglePinned)
                             .help(miniPlayer.isPinned ? "Collapse when the pointer leaves" : "Keep the mini player expanded")
                         SleeveIcon(symbol: "quote.bubble", size: 10, isOn: showsLyrics) { showsLyrics.toggle() }
